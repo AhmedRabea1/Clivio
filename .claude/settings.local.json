@@ -1,0 +1,11 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(nslookup db.cweoxnvgnlissgcztbdc.supabase.co 8.8.8.8)",
+      "Bash(python manage.py makemigrations appointments)",
+      "Bash(python manage.py shell -c ':*)",
+      "Bash(python manage.py migrate appointments)",
+      "Bash(python manage.py check)"
+    ]
+  }
+}

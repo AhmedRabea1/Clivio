@@ -1,0 +1,71 @@
+{% extends "base.html" %}
+
+{% block title %}Branches — Clivio{% endblock %}
+{% block page_title %}Branches{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+  <div>
+    <h5 class="fw-bold mb-0" style="color:#0f172a">Clinic Branches</h5>
+    <p class="text-muted small mb-0">Manage your clinic locations.</p>
+  </div>
+  <div class="d-flex gap-2">
+    <a href="{% url 'manage_branches' %}" class="btn btn-outline-secondary btn-sm px-3">
+      <i class="bi bi-diagram-3 me-1"></i> Assignments
+    </a>
+    <a href="{% url 'branch_create' %}" class="btn btn-primary btn-sm px-3">
+      <i class="bi bi-plus-lg me-1"></i> Add Branch
+    </a>
+  </div>
+</div>
+
+<div class="row g-3">
+  {% for branch in branches %}
+  <div class="col-md-6 col-xl-4">
+    <div class="table-card h-100 p-0">
+      <div class="p-4">
+        <div class="d-flex justify-content-between align-items-start mb-3">
+          <div>
+            <h6 class="fw-bold mb-1">{{ branch.name }}</h6>
+            {% if branch.is_active %}
+            <span class="badge bg-success-subtle text-success small">Active</span>
+            {% else %}
+            <span class="badge bg-danger-subtle text-danger small">Inactive</span>
+            {% endif %}
+          </div>
+          <div class="dropdown">
+            <button class="btn btn-sm btn-light" data-bs-toggle="dropdown"><i class="bi bi-three-dots-vertical"></i></button>
+            <ul class="dropdown-menu dropdown-menu-end">
+              <li><a class="dropdown-item" href="{% url 'branch_edit' branch.pk %}"><i class="bi bi-pencil me-2"></i>Edit</a></li>
+              <li><a class="dropdown-item text-danger" href="{% url 'branch_delete' branch.pk %}"><i class="bi bi-trash me-2"></i>Delete</a></li>
+            </ul>
+          </div>
+        </div>
+        {% if branch.address %}
+        <p class="text-muted small mb-2"><i class="bi bi-geo-alt me-1"></i>{{ branch.address }}</p>
+        {% endif %}
+        {% if branch.phone %}
+        <p class="text-muted small mb-2"><i class="bi bi-telephone me-1"></i>{{ branch.phone }}</p>
+        {% endif %}
+        {% if branch.email %}
+        <p class="text-muted small mb-0"><i class="bi bi-envelope me-1"></i>{{ branch.email }}</p>
+        {% endif %}
+      </div>
+      <div class="px-4 py-3" style="border-top:1px solid #f1f5f9;background:#f8fafc;">
+        <span class="small text-muted">
+          <i class="bi bi-people me-1"></i>
+          {{ branch.user_assignments.count }} staff assigned
+        </span>
+      </div>
+    </div>
+  </div>
+  {% empty %}
+  <div class="col-12">
+    <div class="table-card text-center py-5 text-muted">
+      <i class="bi bi-building fs-2 d-block mb-2"></i>
+      No branches yet. <a href="{% url 'branch_create' %}">Add your first branch.</a>
+    </div>
+  </div>
+  {% endfor %}
+</div>
+{% endblock %}

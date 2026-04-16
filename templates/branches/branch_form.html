@@ -1,0 +1,60 @@
+{% extends "base.html" %}
+
+{% block title %}{{ title }} — Clivio{% endblock %}
+{% block page_title %}{{ title }}{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center">
+  <div class="col-lg-6">
+
+    <div class="d-flex align-items-center gap-3 mb-4">
+      <a href="{% url 'branch_list' %}" class="btn btn-sm btn-outline-secondary">
+        <i class="bi bi-arrow-left"></i>
+      </a>
+      <div>
+        <h5 class="fw-bold mb-0" style="color:#0f172a">{{ title }}</h5>
+        <p class="text-muted small mb-0">Fill in the branch details.</p>
+      </div>
+    </div>
+
+    <div class="form-card">
+      <form method="post" novalidate>
+        {% csrf_token %}
+        <div class="row g-3">
+          <div class="col-12">
+            <label class="form-label fw-medium small">Branch Name <span class="text-danger">*</span></label>
+            {{ form.name }}
+            {% if form.name.errors %}<div class="text-danger small mt-1">{{ form.name.errors.0 }}</div>{% endif %}
+          </div>
+          <div class="col-md-6">
+            <label class="form-label fw-medium small">Phone</label>
+            {{ form.phone }}
+          </div>
+          <div class="col-md-6">
+            <label class="form-label fw-medium small">Email</label>
+            {{ form.email }}
+          </div>
+          <div class="col-12">
+            <label class="form-label fw-medium small">Address</label>
+            {{ form.address }}
+          </div>
+          <div class="col-12">
+            <div class="form-check">
+              {{ form.is_active }}
+              <label class="form-check-label fw-medium small">Active</label>
+            </div>
+          </div>
+        </div>
+        <hr class="my-4" />
+        <div class="d-flex gap-2 justify-content-end">
+          <a href="{% url 'branch_list' %}" class="btn btn-outline-secondary">Cancel</a>
+          <button type="submit" class="btn btn-primary px-4">
+            {% if form.instance.pk %}Save Changes{% else %}Create Branch{% endif %}
+          </button>
+        </div>
+      </form>
+    </div>
+
+  </div>
+</div>
+{% endblock %}

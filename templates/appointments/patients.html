@@ -1,0 +1,133 @@
+{% extends "base.html" %}
+
+{% block title %}Patients — Clivio{% endblock %}
+{% block page_title %}
+  {% if request.user.role == 'doctor' %}Today's Patients{% else %}Patients{% endif %}
+{% endblock %}
+
+{% block content %}
+
+<!-- Header -->
+<div class="d-flex align-items-center justify-content-between mb-4">
+  <div>
+    <h5 class="fw-bold mb-0" style="color:#0f172a">
+      {% if request.user.role == 'doctor' %}
+        Today's Confirmed Patients
+      {% else %}
+        All Patients
+      {% endif %}
+    </h5>
+    <p class="text-muted small mb-0">{{ patients|length }} patient{{ patients|length|pluralize }} found</p>
+  </div>
+  {% if request.user.role != 'doctor' %}
+  <a href="{% url 'patient_create' %}" class="btn btn-primary">
+    <i class="bi bi-plus-lg me-1"></i>Add Patient
+  </a>
+  {% endif %}
+</div>
+
+<!-- Filters (hidden for doctor — they only see today's confirmed) -->
+{% if request.user.role != 'doctor' %}
+<form method="get" class="form-card mb-4">
+  <div class="row g-3 align-items-end">
+    <div class="col-md-3">
+      <label class="form-label fw-medium small">Status</label>
+      <select name="status" class="form-select form-select-sm">
+        <option value="">All statuses</option>
+        {% for val, label in statuses %}
+        <option value="{{ val }}" {% if filter_status == val %}selected{% endif %}>{{ label }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <div class="col-md-3">
+      <label class="form-label fw-medium small">Branch</label>
+      <select name="branch" class="form-select form-select-sm">
+        <option value="">All branches</option>
+        {% for b in branches %}
+        <option value="{{ b.pk }}" {% if filter_branch == b.pk|stringformat:"s" %}selected{% endif %}>{{ b.name }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <div class="col-md-3">
+      <label class="form-label fw-medium small">Doctor</label>
+      <select name="doctor" class="form-select form-select-sm">
+        <option value="">All doctors</option>
+        {% for d in doctors %}
+        <option value="{{ d.pk }}" {% if filter_doctor == d.pk|stringformat:"s" %}selected{% endif %}>{{ d.name }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <div class="col-md-2">
+      <label class="form-label fw-medium small">Visit Date</label>
+      <input type="date" name="date" class="form-control form-control-sm" value="{{ filter_date }}">
+    </div>
+    <div class="col-md-1">
+      <button type="submit" class="btn btn-primary btn-sm w-100">Filter</button>
+    </div>
+  </div>
+</form>
+{% endif %}
+
+<!-- Table -->
+<div class="table-card">
+  {% if patients %}
+  <div class="table-responsive">
+    <table class="table table-hover mb-0">
+      <thead class="table-light">
+        <tr>
+          <th>#</th>
+          <th>Name</th>
+          <th>Mobile</th>
+          <th>Branch</th>
+          <th>Doctor</th>
+          <th>Visit Date</th>
+          <th>Status</th>
+          {% if request.user.role != 'doctor' %}<th></th>{% endif %}
+        </tr>
+      </thead>
+      <tbody>
+        {% for p in patients %}
+        <tr>
+          <td class="text-muted">{{ forloop.counter }}</td>
+          <td class="fw-medium">{{ p.full_name }}</td>
+          <td>{{ p.mobile_number }}</td>
+          <td>{{ p.clinic_location.name|default:"—" }}</td>
+          <td>{{ p.doctor.name|default:"—" }}</td>
+          <td>{{ p.visit_date|date:"M j, Y" }}</td>
+          <td>
+            <span class="badge rounded-pill
+              {% if p.status == 'pending' %}bg-warning text-dark
+              {% elif p.status == 'confirmed' %}bg-primary
+              {% elif p.status == 'completed' %}bg-success
+              {% elif p.status == 'cancelled' %}bg-danger
+              {% else %}bg-secondary{% endif %}">
+              {{ p.get_status_display }}
+            </span>
+          </td>
+          {% if request.user.role != 'doctor' %}
+          <td class="text-end">
+            <a href="{% url 'patient_edit' p.pk %}" class="btn btn-sm btn-outline-secondary me-1">
+              <i class="bi bi-pencil"></i>
+            </a>
+            <a href="{% url 'patient_delete' p.pk %}" class="btn btn-sm btn-outline-danger">
+              <i class="bi bi-trash"></i>
+            </a>
+          </td>
+          {% endif %}
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% else %}
+  <div class="text-center py-5 text-muted">
+    <i class="bi bi-person-x fs-2 d-block mb-2"></i>
+    {% if request.user.role == 'doctor' %}
+      No confirmed patients scheduled for today.
+    {% else %}
+      No patients match your filters.
+    {% endif %}
+  </div>
+  {% endif %}
+</div>
+{% endblock %}

@@ -1,0 +1,52 @@
+{% extends "base.html" %}
+
+{% block title %}Login — Clivio{% endblock %}
+
+{% block auth_content %}
+<div class="min-vh-100 d-flex align-items-center justify-content-center" style="background: #0f172a;">
+  <div style="width: 100%; max-width: 420px; padding: 1rem;">
+
+    <div class="text-center mb-4">
+      <div style="font-size: 2rem; font-weight: 800; color: #fff; letter-spacing: 0.02em;">
+        Cliv<span style="color: #2563eb;">io</span>
+      </div>
+      <p class="mt-1" style="color: #64748b; font-size: 0.9rem;">Dermatology Clinic Management</p>
+    </div>
+
+    <div style="background: #1e293b; border-radius: 16px; padding: 2rem; border: 1px solid #334155;">
+      <h5 class="mb-4 fw-semibold" style="color: #f1f5f9;">Sign in to your account</h5>
+
+      {% if form.non_field_errors %}
+      <div class="alert alert-danger py-2 small">
+        {{ form.non_field_errors }}
+      </div>
+      {% endif %}
+
+      <form method="post" novalidate>
+        {% csrf_token %}
+        <div class="mb-3">
+          <label class="form-label small fw-medium" style="color: #94a3b8;">Email address</label>
+          {{ form.username }}
+          {% if form.username.errors %}
+          <div class="text-danger small mt-1">{{ form.username.errors.0 }}</div>
+          {% endif %}
+        </div>
+        <div class="mb-4">
+          <label class="form-label small fw-medium" style="color: #94a3b8;">Password</label>
+          {{ form.password }}
+          {% if form.password.errors %}
+          <div class="text-danger small mt-1">{{ form.password.errors.0 }}</div>
+          {% endif %}
+        </div>
+        <button type="submit" class="btn w-100 fw-semibold" style="background: #2563eb; color: #fff; padding: 0.65rem; border-radius: 8px;">
+          Sign in
+        </button>
+      </form>
+    </div>
+
+    <p class="text-center mt-3" style="color: #475569; font-size: 0.8rem;">
+      &copy; {% now "Y" %} Clivio. All rights reserved.
+    </p>
+  </div>
+</div>
+{% endblock %}

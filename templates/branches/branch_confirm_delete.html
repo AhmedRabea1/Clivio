@@ -1,0 +1,23 @@
+{% extends "base.html" %}
+
+{% block title %}Delete Branch — Clivio{% endblock %}
+{% block page_title %}Delete Branch{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center">
+  <div class="col-lg-5">
+    <div class="form-card text-center">
+      <div style="width:60px;height:60px;background:#fee2e2;border-radius:50%;display:flex;align-items:center;justify-content:center;margin:0 auto 1rem;">
+        <i class="bi bi-exclamation-triangle-fill text-danger fs-4"></i>
+      </div>
+      <h5 class="fw-bold mb-1">Delete "{{ branch.name }}"?</h5>
+      <p class="text-muted small mb-4">This will remove the branch and all its staff assignments. Appointments linked to this branch will remain but become unassigned.</p>
+      <form method="post" class="d-flex gap-2 justify-content-center">
+        {% csrf_token %}
+        <a href="{% url 'branch_list' %}" class="btn btn-outline-secondary">Cancel</a>
+        <button type="submit" class="btn btn-danger px-4">Yes, Delete</button>
+      </form>
+    </div>
+  </div>
+</div>
+{% endblock %}

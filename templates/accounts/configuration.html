@@ -1,0 +1,207 @@
+{% extends "base.html" %}
+
+{% block title %}Configuration — Clivio{% endblock %}
+{% block page_title %}Clinic Configuration{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center">
+  <div class="col-lg-9">
+
+    <div class="mb-4">
+      <h5 class="fw-bold mb-0" style="color:#0f172a">Clinic Configuration</h5>
+      <p class="text-muted small mb-0">Manage your clinic's branding, colors, and social links. Changes apply immediately after save.</p>
+    </div>
+
+    <form method="post" enctype="multipart/form-data" novalidate>
+      {% csrf_token %}
+
+      <!-- Branding -->
+      <div class="form-card mb-4">
+        <h6 class="fw-semibold mb-3" style="color:#0f172a">
+          <i class="bi bi-brush me-2" style="color:var(--primary)"></i>Branding
+        </h6>
+        <div class="row g-3">
+
+          <div class="col-12">
+            <label class="form-label fw-medium small">Clinic Name <span class="text-danger">*</span></label>
+            {{ form.clinic_name }}
+            {% if form.clinic_name.errors %}<div class="text-danger small mt-1">{{ form.clinic_name.errors.0 }}</div>{% endif %}
+          </div>
+
+          <!-- Logo -->
+          <div class="col-md-6">
+            <label class="form-label fw-medium small">
+              Logo <span class="text-danger">*</span>
+              <span class="text-muted fw-normal">(PNG/JPG)</span>
+            </label>
+            {% if logo_preview %}
+            <div class="mb-2 p-2 border rounded d-inline-flex align-items-center gap-2" style="background:#f8fafc">
+              <img src="{{ logo_preview }}" id="logo-preview" alt="Logo" style="height:52px;object-fit:contain;border-radius:6px;" />
+              <span class="text-muted small">Current logo</span>
+            </div>
+            {% else %}
+            <div class="mb-2 p-3 border rounded d-flex align-items-center gap-2" style="background:#f8fafc">
+              <img id="logo-preview" src="" alt="" style="height:52px;object-fit:contain;border-radius:6px;display:none;" />
+              <span class="text-muted small" id="logo-placeholder"><i class="bi bi-image me-1"></i>No logo uploaded</span>
+            </div>
+            {% endif %}
+            <input type="file" name="logo" class="form-control" accept="image/*" id="logo-input" />
+          </div>
+
+          <!-- Hero Image -->
+          <div class="col-md-6">
+            <label class="form-label fw-medium small">
+              Hero Image <span class="text-danger">*</span>
+              <span class="text-muted fw-normal">(PNG/JPG)</span>
+            </label>
+            {% if hero_preview %}
+            <div class="mb-2 p-2 border rounded d-inline-flex align-items-center gap-2" style="background:#f8fafc">
+              <img src="{{ hero_preview }}" id="hero-preview" alt="Hero" style="height:52px;object-fit:cover;border-radius:6px;width:100px;" />
+              <span class="text-muted small">Current hero</span>
+            </div>
+            {% else %}
+            <div class="mb-2 p-3 border rounded d-flex align-items-center gap-2" style="background:#f8fafc">
+              <img id="hero-preview" src="" alt="" style="height:52px;object-fit:cover;border-radius:6px;width:100px;display:none;" />
+              <span class="text-muted small" id="hero-placeholder"><i class="bi bi-image me-1"></i>No hero image uploaded</span>
+            </div>
+            {% endif %}
+            <input type="file" name="hero_image" class="form-control" accept="image/*" id="hero-input" />
+          </div>
+
+          <div class="col-md-6">
+            <label class="form-label fw-medium small">Slogan</label>
+            {{ form.slogan }}
+          </div>
+          <div class="col-md-6">
+            <label class="form-label fw-medium small">Sub-Slogan</label>
+            {{ form.sub_slogan }}
+          </div>
+          <div class="col-12">
+            <label class="form-label fw-medium small">Footer Info</label>
+            {{ form.footer_info }}
+          </div>
+
+        </div>
+      </div>
+
+      <!-- Theme Colors -->
+      <div class="form-card mb-4">
+        <h6 class="fw-semibold mb-3" style="color:#0f172a">
+          <i class="bi bi-palette me-2" style="color:var(--primary)"></i>Theme Colors
+        </h6>
+        <div class="row g-4">
+
+          <div class="col-md-6">
+            <label class="form-label fw-medium small">Primary Color <span class="text-danger">*</span></label>
+            <div class="d-flex align-items-center gap-3">
+              {{ form.primary_color }}
+              <div>
+                <div class="fw-mono small" id="primary-hex">{{ clinic_config.primary_color|default:'#2563eb' }}</div>
+                <div class="text-muted" style="font-size:0.7rem">Used for buttons, active states</div>
+              </div>
+            </div>
+            {% if form.primary_color.errors %}<div class="text-danger small mt-1">{{ form.primary_color.errors.0 }}</div>{% endif %}
+          </div>
+
+          <div class="col-md-6">
+            <label class="form-label fw-medium small">Secondary Color</label>
+            <div class="d-flex align-items-center gap-3">
+              {{ form.secondary_color }}
+              <div>
+                <div class="fw-mono small" id="secondary-hex">{{ clinic_config.secondary_color|default:'—' }}</div>
+                <div class="text-muted" style="font-size:0.7rem">Used for sidebar background</div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Live preview bar -->
+          <div class="col-12">
+            <label class="form-label fw-medium small text-muted">Preview</label>
+            <div class="d-flex gap-2 align-items-center p-3 rounded border" style="background:#f8fafc">
+              <div id="preview-primary" style="width:36px;height:36px;border-radius:8px;background:{{ clinic_config.primary_color|default:'#2563eb' }}"></div>
+              <div id="preview-secondary" style="width:36px;height:36px;border-radius:8px;background:{{ clinic_config.secondary_color|default:'#0f172a' }}"></div>
+              <div id="preview-btn" class="btn btn-sm text-white ms-2" style="background:{{ clinic_config.primary_color|default:'#2563eb' }};border:none;pointer-events:none">Button preview</div>
+            </div>
+          </div>
+
+        </div>
+      </div>
+
+      <!-- Social Links -->
+      <div class="form-card mb-4">
+        <h6 class="fw-semibold mb-3" style="color:#0f172a">
+          <i class="bi bi-share me-2" style="color:var(--primary)"></i>Social & Contact Links
+        </h6>
+        <div class="row g-3">
+          <div class="col-md-6">
+            <label class="form-label fw-medium small"><i class="bi bi-linkedin me-1" style="color:#0a66c2"></i>LinkedIn URL</label>
+            {{ form.linkedin_url }}
+          </div>
+          <div class="col-md-6">
+            <label class="form-label fw-medium small"><i class="bi bi-instagram me-1" style="color:#e1306c"></i>Instagram URL</label>
+            {{ form.instagram_url }}
+          </div>
+          <div class="col-md-6">
+            <label class="form-label fw-medium small"><i class="bi bi-facebook me-1" style="color:#1877f2"></i>Facebook URL</label>
+            {{ form.facebook_url }}
+          </div>
+          <div class="col-md-6">
+            <label class="form-label fw-medium small"><i class="bi bi-whatsapp me-1" style="color:#25d366"></i>WhatsApp URL</label>
+            {{ form.whatsapp_url }}
+          </div>
+        </div>
+      </div>
+
+      <div class="d-flex justify-content-end gap-2 mb-4">
+        <button type="submit" class="btn btn-primary px-5">
+          <i class="bi bi-check-lg me-1"></i>Save Configuration
+        </button>
+      </div>
+
+    </form>
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+  // Image preview on file select
+  function setupPreview(inputId, previewId, placeholderId) {
+    const input = document.getElementById(inputId);
+    const preview = document.getElementById(previewId);
+    const placeholder = document.getElementById(placeholderId);
+    if (!input) return;
+    input.addEventListener('change', function () {
+      const file = this.files[0];
+      if (!file) return;
+      const reader = new FileReader();
+      reader.onload = e => {
+        preview.src = e.target.result;
+        preview.style.display = 'block';
+        if (placeholder) placeholder.style.display = 'none';
+      };
+      reader.readAsDataURL(file);
+    });
+  }
+  setupPreview('logo-input', 'logo-preview', 'logo-placeholder');
+  setupPreview('hero-input', 'hero-preview', 'hero-placeholder');
+
+  // Color pickers — update hex label + live preview
+  const primaryInput = document.querySelector('[name="primary_color"]');
+  const secondaryInput = document.querySelector('[name="secondary_color"]');
+
+  if (primaryInput) {
+    primaryInput.addEventListener('input', function () {
+      document.getElementById('primary-hex').textContent = this.value;
+      document.getElementById('preview-primary').style.background = this.value;
+      document.getElementById('preview-btn').style.background = this.value;
+    });
+  }
+  if (secondaryInput) {
+    secondaryInput.addEventListener('input', function () {
+      document.getElementById('secondary-hex').textContent = this.value;
+      document.getElementById('preview-secondary').style.background = this.value;
+    });
+  }
+</script>
+{% endblock %}

@@ -1,0 +1,108 @@
+{% extends "base.html" %}
+
+{% block title %}Dashboard — Clivio{% endblock %}
+{% block page_title %}Dashboard{% endblock %}
+
+{% block content %}
+
+{% if clinic_config %}
+<div class="d-flex align-items-center gap-3 mb-4 p-4 rounded-3" style="background:#fff;border:1px solid #e2e8f0;">
+  {% if logo_b64 %}
+  <img src="{{ logo_b64 }}" alt="Logo" style="height:56px;object-fit:contain;border-radius:10px;" />
+  {% endif %}
+  <div>
+    <h5 class="fw-bold mb-0" style="color:var(--primary)">{{ clinic_config.clinic_name }}</h5>
+    {% if clinic_config.slogan %}<p class="text-muted small mb-0">{{ clinic_config.slogan }}</p>{% endif %}
+    {% if clinic_config.sub_slogan %}<p class="text-muted small mb-0">{{ clinic_config.sub_slogan }}</p>{% endif %}
+  </div>
+</div>
+{% endif %}
+
+<div class="row g-3 mb-4">
+  <div class="col-sm-6 col-xl-3">
+    <div class="stat-card">
+      <div class="icon" style="background:#dbeafe;color:#2563eb"><i class="bi bi-people-fill"></i></div>
+      <div>
+        <div class="value">{{ total_users }}</div>
+        <div class="label">Total Users</div>
+      </div>
+    </div>
+  </div>
+  <div class="col-sm-6 col-xl-3">
+    <div class="stat-card">
+      <div class="icon" style="background:#dcfce7;color:#16a34a"><i class="bi bi-building-fill"></i></div>
+      <div>
+        <div class="value">{{ total_branches }}</div>
+        <div class="label">Branches</div>
+      </div>
+    </div>
+  </div>
+  <div class="col-sm-6 col-xl-3">
+    <div class="stat-card">
+      <div class="icon" style="background:#fef9c3;color:#ca8a04"><i class="bi bi-heart-pulse-fill"></i></div>
+      <div>
+        <div class="value">{{ total_patients }}</div>
+        <div class="label">Total Patients</div>
+      </div>
+    </div>
+  </div>
+  <div class="col-sm-6 col-xl-3">
+    <div class="stat-card">
+      <div class="icon" style="background:#fce7f3;color:#db2777"><i class="bi bi-calendar-check-fill"></i></div>
+      <div>
+        <div class="value">{{ today_patients }}</div>
+        <div class="label">Today's Patients</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="table-card">
+  <div class="table-card-header">
+    <h6><i class="bi bi-clock-history me-2"></i>Recent Patients</h6>
+    <a href="{% url 'patient_create' %}" class="btn btn-primary btn-sm">
+      <i class="bi bi-plus-lg me-1"></i>Add Patient
+    </a>
+  </div>
+  {% if recent_patients %}
+  <div class="table-responsive">
+    <table class="table table-hover mb-0">
+      <thead class="table-light">
+        <tr>
+          <th>Patient</th>
+          <th>Branch</th>
+          <th>Doctor</th>
+          <th>Visit Date</th>
+          <th>Status</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for p in recent_patients %}
+        <tr>
+          <td>{{ p.full_name }}</td>
+          <td>{{ p.clinic_location.name|default:"—" }}</td>
+          <td>{{ p.doctor.name|default:"—" }}</td>
+          <td>{{ p.visit_date|date:"M j, Y" }}</td>
+          <td>
+            <span class="badge rounded-pill
+              {% if p.status == 'pending' %}bg-warning text-dark
+              {% elif p.status == 'confirmed' %}bg-primary
+              {% elif p.status == 'completed' %}bg-success
+              {% elif p.status == 'cancelled' %}bg-danger
+              {% else %}bg-secondary{% endif %}">
+              {{ p.get_status_display }}
+            </span>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% else %}
+  <div class="text-center py-5 text-muted">
+    <i class="bi bi-person-x fs-2 d-block mb-2"></i>
+    No patients yet.
+  </div>
+  {% endif %}
+</div>
+{% endblock %}

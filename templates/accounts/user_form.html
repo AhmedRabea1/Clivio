@@ -1,0 +1,110 @@
+{% extends "base.html" %}
+
+{% block title %}{{ title }} — Clivio{% endblock %}
+{% block page_title %}{{ title }}{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center">
+  <div class="col-lg-8">
+
+    <div class="d-flex align-items-center gap-3 mb-4">
+      <a href="{% url 'user_list' %}" class="btn btn-sm btn-outline-secondary">
+        <i class="bi bi-arrow-left"></i>
+      </a>
+      <div>
+        <h5 class="fw-bold mb-0" style="color:#0f172a">{{ title }}</h5>
+        <p class="text-muted small mb-0">Fill in the details below.</p>
+      </div>
+    </div>
+
+    <div class="form-card">
+      <form method="post" novalidate>
+        {% csrf_token %}
+
+        <div class="row g-3">
+          <div class="col-md-6">
+            <label class="form-label fw-medium small">Full Name <span class="text-danger">*</span></label>
+            {{ form.name }}
+            {% if form.name.errors %}<div class="text-danger small mt-1">{{ form.name.errors.0 }}</div>{% endif %}
+          </div>
+          <div class="col-md-6">
+            <label class="form-label fw-medium small">Email <span class="text-danger">*</span></label>
+            {{ form.email }}
+            {% if form.email.errors %}<div class="text-danger small mt-1">{{ form.email.errors.0 }}</div>{% endif %}
+          </div>
+          <div class="col-md-6">
+            <label class="form-label fw-medium small">Role <span class="text-danger">*</span></label>
+            {{ form.role }}
+            {% if form.role.errors %}<div class="text-danger small mt-1">{{ form.role.errors.0 }}</div>{% endif %}
+          </div>
+          <div class="col-md-6">
+            <label class="form-label fw-medium small">Phone</label>
+            {{ form.phone }}
+          </div>
+          <div class="col-md-6">
+            <label class="form-label fw-medium small">Specialty <span class="text-muted small">(doctors)</span></label>
+            {{ form.specialty }}
+          </div>
+          <div class="col-md-6">
+            <label class="form-label fw-medium small">Role Title <span class="text-muted small">(assistants)</span></label>
+            {{ form.role_title }}
+          </div>
+          <div class="col-12">
+            <label class="form-label fw-medium small">Password
+              {% if user_obj %}<span class="text-muted">(leave blank to keep current)</span>{% else %}<span class="text-danger">*</span>{% endif %}
+            </label>
+            {{ form.password }}
+            {% if form.password.errors %}<div class="text-danger small mt-1">{{ form.password.errors.0 }}</div>{% endif %}
+          </div>
+          <div class="col-12">
+            <div class="form-check">
+              {{ form.is_active }}
+              <label class="form-check-label fw-medium small">Active</label>
+            </div>
+          </div>
+        </div>
+
+        {% if branches %}
+        <hr class="my-4" />
+        <div>
+          <label class="form-label fw-medium small d-block mb-2">
+            Branch Assignments
+            <span class="text-muted fw-normal">(required for doctors & assistants)</span>
+          </label>
+          <div class="row g-2">
+            {% for branch in branches %}
+            <div class="col-md-6">
+              <div class="form-check p-3 border rounded" style="background:#f8fafc;">
+                <input
+                  class="form-check-input"
+                  type="checkbox"
+                  name="branch_ids"
+                  value="{{ branch.pk }}"
+                  id="branch_{{ branch.pk }}"
+                  {% if assigned_ids and branch.pk in assigned_ids %}checked{% endif %}
+                />
+                <label class="form-check-label small" for="branch_{{ branch.pk }}">
+                  <span class="fw-medium">{{ branch.name }}</span>
+                  {% if branch.city %}<span class="text-muted"> — {{ branch.city }}</span>{% endif %}
+                </label>
+              </div>
+            </div>
+            {% endfor %}
+          </div>
+        </div>
+        {% endif %}
+
+        <hr class="my-4" />
+
+        <div class="d-flex gap-2 justify-content-end">
+          <a href="{% url 'user_list' %}" class="btn btn-outline-secondary">Cancel</a>
+          <button type="submit" class="btn btn-primary px-4">
+            {% if user_obj %}Save Changes{% else %}Create User{% endif %}
+          </button>
+        </div>
+      </form>
+    </div>
+
+  </div>
+</div>
+{% endblock %}

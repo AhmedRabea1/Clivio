@@ -1,0 +1,129 @@
+{% extends "base.html" %}
+
+{% block title %}{{ title }} — Clivio{% endblock %}
+{% block page_title %}{{ title }}{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center">
+  <div class="col-lg-8">
+
+    <div class="mb-4 d-flex align-items-center gap-3">
+      <a href="{% url 'patient_list' %}" class="btn btn-sm btn-outline-secondary">
+        <i class="bi bi-arrow-left me-1"></i>Back
+      </a>
+      <div>
+        <h5 class="fw-bold mb-0" style="color:#0f172a">{{ title }}</h5>
+        <p class="text-muted small mb-0">Fill in the patient details below.</p>
+      </div>
+    </div>
+
+    <form method="post" novalidate>
+      {% csrf_token %}
+
+      <!-- Personal Info -->
+      <div class="form-card mb-4">
+        <h6 class="fw-semibold mb-3" style="color:#0f172a">
+          <i class="bi bi-person me-2" style="color:var(--primary)"></i>Personal Information
+        </h6>
+        <div class="row g-3">
+          <div class="col-md-6">
+            <label class="form-label fw-medium small">First Name <span class="text-danger">*</span></label>
+            {{ form.first_name }}
+            {% if form.first_name.errors %}<div class="text-danger small mt-1">{{ form.first_name.errors.0 }}</div>{% endif %}
+          </div>
+          <div class="col-md-6">
+            <label class="form-label fw-medium small">Last Name <span class="text-danger">*</span></label>
+            {{ form.last_name }}
+            {% if form.last_name.errors %}<div class="text-danger small mt-1">{{ form.last_name.errors.0 }}</div>{% endif %}
+          </div>
+          <div class="col-md-6">
+            <label class="form-label fw-medium small">Date of Birth</label>
+            {{ form.date_of_birth }}
+          </div>
+          <div class="col-md-6">
+            <label class="form-label fw-medium small">Mobile Number <span class="text-danger">*</span></label>
+            {{ form.mobile_number }}
+            {% if form.mobile_number.errors %}<div class="text-danger small mt-1">{{ form.mobile_number.errors.0 }}</div>{% endif %}
+          </div>
+        </div>
+      </div>
+
+      <!-- Appointment Info -->
+      <div class="form-card mb-4">
+        <h6 class="fw-semibold mb-3" style="color:#0f172a">
+          <i class="bi bi-calendar2-check me-2" style="color:var(--primary)"></i>Appointment Details
+        </h6>
+        <div class="row g-3">
+          <div class="col-md-6">
+            <label class="form-label fw-medium small">Branch <span class="text-danger">*</span></label>
+            {{ form.clinic_location }}
+            {% if form.clinic_location.errors %}<div class="text-danger small mt-1">{{ form.clinic_location.errors.0 }}</div>{% endif %}
+          </div>
+          <div class="col-md-6">
+            <label class="form-label fw-medium small">Doctor</label>
+            {{ form.doctor }}
+            <div class="text-muted" style="font-size:0.75rem;margin-top:4px">Select a branch first to filter doctors.</div>
+          </div>
+          <div class="col-md-6">
+            <label class="form-label fw-medium small">Visit Date <span class="text-danger">*</span></label>
+            {{ form.visit_date }}
+            {% if form.visit_date.errors %}<div class="text-danger small mt-1">{{ form.visit_date.errors.0 }}</div>{% endif %}
+          </div>
+          <div class="col-md-6">
+            <label class="form-label fw-medium small">Status</label>
+            {{ form.status }}
+          </div>
+          <div class="col-12">
+            <label class="form-label fw-medium small">Medical Notes</label>
+            {{ form.medical_notes }}
+          </div>
+        </div>
+      </div>
+
+      <div class="d-flex justify-content-end gap-2 mb-4">
+        <a href="{% url 'patient_list' %}" class="btn btn-outline-secondary">Cancel</a>
+        <button type="submit" class="btn btn-primary px-5">
+          <i class="bi bi-check-lg me-1"></i>Save Patient
+        </button>
+      </div>
+    </form>
+
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+  // Branch → doctor filtering
+  const branchDoctors = {{ branch_doctors_json|safe }};
+
+  const branchSelect = document.getElementById('id_clinic_location');
+  const doctorSelect = document.getElementById('id_doctor');
+
+  // Store the currently selected doctor id (for edit mode)
+  const currentDoctorId = "{{ form.doctor.value|default:'' }}";
+
+  function updateDoctors() {
+    const branchId = branchSelect.value;
+    const doctors  = branchDoctors[branchId] || [];
+
+    // Clear options
+    doctorSelect.innerHTML = '<option value="">— No doctor —</option>';
+
+    doctors.forEach(function(d) {
+      const opt = document.createElement('option');
+      opt.value = d.id;
+      opt.textContent = d.name;
+      if (String(d.id) === currentDoctorId) opt.selected = true;
+      doctorSelect.appendChild(opt);
+    });
+  }
+
+  branchSelect.addEventListener('change', updateDoctors);
+
+  // On page load, populate for the already-selected branch (edit mode)
+  if (branchSelect.value) {
+    updateDoctors();
+  }
+</script>
+{% endblock %}

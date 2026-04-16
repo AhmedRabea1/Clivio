@@ -1,0 +1,105 @@
+{% extends "base.html" %}
+
+{% block title %}Manage Assignments — Clivio{% endblock %}
+{% block page_title %}Branch Assignments{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+  <div>
+    <h5 class="fw-bold mb-0" style="color:#0f172a">Branch Assignments</h5>
+    <p class="text-muted small mb-0">Assign doctors and assistants to clinic branches.</p>
+  </div>
+  <a href="{% url 'branch_list' %}" class="btn btn-outline-secondary btn-sm px-3">
+    <i class="bi bi-building me-1"></i> Branches
+  </a>
+</div>
+
+<div class="row g-4">
+
+  <!-- Assign Form -->
+  <div class="col-lg-4">
+    <div class="form-card">
+      <h6 class="fw-bold mb-3"><i class="bi bi-person-plus me-2 text-primary"></i>Assign Staff to Branch</h6>
+      <form method="post" novalidate>
+        {% csrf_token %}
+        <input type="hidden" name="action" value="assign" />
+        <div class="mb-3">
+          <label class="form-label fw-medium small">Staff Member</label>
+          {{ form.user }}
+          {% if form.user.errors %}<div class="text-danger small mt-1">{{ form.user.errors.0 }}</div>{% endif %}
+        </div>
+        <div class="mb-4">
+          <label class="form-label fw-medium small">Branch</label>
+          {{ form.branch }}
+          {% if form.branch.errors %}<div class="text-danger small mt-1">{{ form.branch.errors.0 }}</div>{% endif %}
+        </div>
+        <button type="submit" class="btn btn-primary w-100">
+          <i class="bi bi-check-lg me-1"></i> Assign
+        </button>
+      </form>
+    </div>
+  </div>
+
+  <!-- Current Assignments per Branch -->
+  <div class="col-lg-8">
+    {% for branch in branches %}
+    <div class="table-card mb-3">
+      <div class="table-card-header">
+        <h6><i class="bi bi-building me-2"></i>{{ branch.name }}</h6>
+        <span class="badge bg-primary-subtle text-primary">{{ branch.user_assignments.count }} assigned</span>
+      </div>
+      {% if branch.user_assignments.all %}
+      <div class="table-responsive">
+        <table class="table table-hover mb-0 align-middle">
+          <thead class="table-light">
+            <tr>
+              <th>Name</th>
+              <th>Role</th>
+              <th>Assigned</th>
+              <th class="text-end">Remove</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for assignment in branch.user_assignments.all %}
+            <tr>
+              <td>
+                <div class="d-flex align-items-center gap-2">
+                  <div style="width:30px;height:30px;border-radius:50%;background:#dbeafe;display:flex;align-items:center;justify-content:center;font-weight:700;color:#2563eb;font-size:0.8rem;">
+                    {{ assignment.user.name|first|upper }}
+                  </div>
+                  <span class="fw-medium small">{{ assignment.user.name }}</span>
+                </div>
+              </td>
+              <td><span class="role-badge role-{{ assignment.user.role }}">{{ assignment.user.get_role_display }}</span></td>
+              <td class="text-muted small">{{ assignment.assigned_at|date:"M j, Y" }}</td>
+              <td class="text-end">
+                <form method="post" class="d-inline" onsubmit="return confirm('Remove this assignment?')">
+                  {% csrf_token %}
+                  <input type="hidden" name="action" value="unassign" />
+                  <input type="hidden" name="assignment_id" value="{{ assignment.pk }}" />
+                  <button type="submit" class="btn btn-sm btn-outline-danger">
+                    <i class="bi bi-x-lg"></i>
+                  </button>
+                </form>
+              </td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+      {% else %}
+      <div class="text-center py-4 text-muted small">
+        <i class="bi bi-person-x d-block mb-1"></i>No staff assigned to this branch.
+      </div>
+      {% endif %}
+    </div>
+    {% empty %}
+    <div class="table-card text-center py-5 text-muted">
+      <i class="bi bi-building fs-2 d-block mb-2"></i>
+      No branches found. <a href="{% url 'branch_create' %}">Create one first.</a>
+    </div>
+    {% endfor %}
+  </div>
+
+</div>
+{% endblock %}
