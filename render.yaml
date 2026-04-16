@@ -24,4 +24,4 @@ services:
       - key: CORS_ALLOWED_ORIGINS
         value: "https://your-frontend.com"
       - key: PYTHON_VERSION
-        value: "3.11.0"
+        value: "3.12.0"
