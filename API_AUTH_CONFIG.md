@@ -1,5 +1,5 @@
 # CLIVIO — Auth & Configuration API
-**Version:** 1.0 | **Base URL:** `http://localhost:8000/api` | **Format:** JSON
+**Version:** 1.0 | **Base URL:** `https://clivio.onrender.com/api` | **Format:** JSON
 
 ---
 
@@ -185,8 +185,8 @@ Retrieve clinic branding and settings.
 {
   "id": 1,
   "clinic_name": "Clivio Dermatology",
-  "logo_url": "http://localhost:8000/media/config/logos/logo.png",
-  "hero_image_url": "http://localhost:8000/media/config/hero/hero.jpg",
+  "logo_url": "https://clivio.onrender.com/media/config/logos/logo.png",
+  "hero_image_url": "https://clivio.onrender.com/media/config/hero/hero.jpg",
   "slogan": "Your skin, our care",
   "sub_slogan": "Expert dermatology since 2015",
   "footer_info": "© 2026 Clivio Dermatology. All rights reserved.",

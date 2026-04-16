@@ -1,5 +1,5 @@
 # CLIVIO — API Design Document
-**Version:** 1.0 | **Base URL:** `http://localhost:8000/api` | **Format:** JSON
+**Version:** 1.0 | **Base URL:** `https://clivio.onrender.com/api` | **Format:** JSON
 
 > Auth & Configuration endpoints are documented separately in [API_AUTH_CONFIG.md](API_AUTH_CONFIG.md).
 > All endpoints below require `Authorization: Bearer <access_token>` unless stated otherwise.
