@@ -1,0 +1,132 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Clivio API Tester</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: system-ui, sans-serif; background: #f1f5f9; padding: 2rem; }
+    h1 { color: #0f172a; margin-bottom: 1.5rem; font-size: 1.4rem; }
+    .card { background: #fff; border-radius: 12px; border: 1px solid #e2e8f0; padding: 1.5rem; margin-bottom: 1.5rem; max-width: 540px; }
+    label { display: block; font-size: 0.85rem; font-weight: 600; color: #475569; margin-bottom: 4px; }
+    input { width: 100%; padding: 0.5rem 0.75rem; border: 1px solid #cbd5e1; border-radius: 8px; font-size: 0.95rem; margin-bottom: 1rem; }
+    button { background: #2563eb; color: #fff; border: none; border-radius: 8px; padding: 0.6rem 1.5rem; font-size: 0.95rem; cursor: pointer; }
+    button:hover { background: #1d4ed8; }
+    pre { background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 1rem; font-size: 0.8rem; overflow-x: auto; white-space: pre-wrap; word-break: break-all; margin-top: 1rem; max-height: 300px; overflow-y: auto; }
+    .success { color: #16a34a; font-weight: 600; margin-top: 0.5rem; }
+    .error   { color: #dc2626; font-weight: 600; margin-top: 0.5rem; }
+    .token-box { background: #eff6ff; border: 1px solid #bfdbfe; border-radius: 8px; padding: 0.75rem; margin-top: 0.75rem; font-size: 0.78rem; word-break: break-all; color: #1e40af; }
+  </style>
+</head>
+<body>
+
+<h1>Clivio API Tester</h1>
+
+<!-- LOGIN -->
+<div class="card">
+  <h2 style="font-size:1rem;margin-bottom:1rem;color:#0f172a">POST /api/auth/login</h2>
+  <label>Email</label>
+  <input id="email" type="email" value="admin@clivio.com" />
+  <label>Password</label>
+  <input id="password" type="password" value="" placeholder="your password" />
+  <button onclick="login()">Login</button>
+  <div id="login-status"></div>
+  <pre id="login-result" style="display:none"></pre>
+  <div id="token-display" style="display:none">
+    <div class="token-box"><strong>Access Token:</strong><br><span id="access-token"></span></div>
+  </div>
+</div>
+
+<!-- TEST PROTECTED ENDPOINT -->
+<div class="card">
+  <h2 style="font-size:1rem;margin-bottom:1rem;color:#0f172a">Test Protected Endpoint</h2>
+  <label>URL</label>
+  <input id="test-url" value="https://clivio.onrender.com/api/users" />
+  <label>Method</label>
+  <select id="test-method" style="width:100%;padding:0.5rem;border:1px solid #cbd5e1;border-radius:8px;margin-bottom:1rem">
+    <option>GET</option>
+    <option>POST</option>
+    <option>PATCH</option>
+    <option>DELETE</option>
+  </select>
+  <button onclick="testEndpoint()">Send</button>
+  <div id="test-status"></div>
+  <pre id="test-result" style="display:none"></pre>
+</div>
+
+<script>
+  const BASE = 'https://clivio.onrender.com/api';
+  let accessToken = '';
+
+  async function login() {
+    const email    = document.getElementById('email').value;
+    const password = document.getElementById('password').value;
+    const statusEl = document.getElementById('login-status');
+    const resultEl = document.getElementById('login-result');
+    const tokenEl  = document.getElementById('token-display');
+
+    statusEl.textContent = 'Sending...';
+    statusEl.className = '';
+
+    try {
+      const res = await fetch(`${BASE}/auth/login`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ username: email, password }),
+      });
+
+      const data = await res.json();
+      resultEl.textContent = JSON.stringify(data, null, 2);
+      resultEl.style.display = 'block';
+
+      if (res.ok) {
+        accessToken = data.access;
+        statusEl.textContent = '✓ Login successful';
+        statusEl.className = 'success';
+        document.getElementById('access-token').textContent = accessToken;
+        tokenEl.style.display = 'block';
+      } else {
+        statusEl.textContent = `✗ Error ${res.status}`;
+        statusEl.className = 'error';
+      }
+    } catch (err) {
+      statusEl.textContent = '✗ ' + err.message;
+      statusEl.className = 'error';
+      resultEl.textContent = err.toString();
+      resultEl.style.display = 'block';
+    }
+  }
+
+  async function testEndpoint() {
+    const url      = document.getElementById('test-url').value;
+    const method   = document.getElementById('test-method').value;
+    const statusEl = document.getElementById('test-status');
+    const resultEl = document.getElementById('test-result');
+
+    statusEl.textContent = 'Sending...';
+    statusEl.className = '';
+
+    try {
+      const res = await fetch(url, {
+        method,
+        headers: {
+          'Content-Type': 'application/json',
+          ...(accessToken ? { 'Authorization': `Bearer ${accessToken}` } : {}),
+        },
+      });
+
+      const data = await res.json();
+      resultEl.textContent = JSON.stringify(data, null, 2);
+      resultEl.style.display = 'block';
+      statusEl.textContent = `${res.ok ? '✓' : '✗'} Status: ${res.status}`;
+      statusEl.className = res.ok ? 'success' : 'error';
+    } catch (err) {
+      statusEl.textContent = '✗ ' + err.message;
+      statusEl.className = 'error';
+      resultEl.textContent = err.toString();
+      resultEl.style.display = 'block';
+    }
+  }
+</script>
+</body>
+</html>
