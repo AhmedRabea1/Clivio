@@ -153,6 +153,20 @@ _cors_origins = os.environ.get(
     'http://localhost:3000,http://localhost:5173'
 )
 CORS_ALLOWED_ORIGINS = [o.strip() for o in _cors_origins.split(',') if o.strip()]
+
+# Always allow common localhost ports for local FE development
+CORS_ALLOWED_ORIGINS += [
+    'http://localhost:3000',
+    'http://localhost:5173',
+    'http://localhost:4200',
+    'http://localhost:8080',
+    'http://127.0.0.1:3000',
+    'http://127.0.0.1:5173',
+    'http://127.0.0.1:4200',
+    'http://127.0.0.1:8080',
+]
+CORS_ALLOWED_ORIGINS = list(set(CORS_ALLOWED_ORIGINS))  # remove duplicates
+
 CORS_ALLOW_CREDENTIALS = True
 CORS_ALLOW_ALL_ORIGINS = os.environ.get('CORS_ALLOW_ALL', 'False') == 'True'
 
