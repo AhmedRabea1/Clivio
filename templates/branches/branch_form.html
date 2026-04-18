@@ -27,12 +27,33 @@
             {% if form.name.errors %}<div class="text-danger small mt-1">{{ form.name.errors.0 }}</div>{% endif %}
           </div>
           <div class="col-md-6">
-            <label class="form-label fw-medium small">Phone</label>
+            <label class="form-label fw-medium small">Phone <span class="text-danger">*</span></label>
             {{ form.phone }}
           </div>
           <div class="col-12">
-            <label class="form-label fw-medium small">Address</label>
+            <label class="form-label fw-medium small">Address <span class="text-danger">*</span></label>
             {{ form.address }}
+          </div>
+          <div class="col-md-6">
+            <label class="form-label fw-medium small">Working Hours From</label>
+            {{ form.from_time }}
+          </div>
+          <div class="col-md-6">
+            <label class="form-label fw-medium small">Working Hours To</label>
+            {{ form.to_time }}
+          </div>
+          <div class="col-12">
+            <label class="form-label fw-medium small d-block mb-2">Vacation Days</label>
+            <div class="d-flex flex-wrap gap-3">
+              {% for value, label in form.vacation_days.field.choices %}
+              <div class="form-check">
+                <input class="form-check-input" type="checkbox" name="vacation_days"
+                  value="{{ value }}" id="vday_{{ value }}"
+                  {% if value|stringformat:"s" in form.vacation_days.value %}checked{% endif %}>
+                <label class="form-check-label small" for="vday_{{ value }}">{{ label }}</label>
+              </div>
+              {% endfor %}
+            </div>
           </div>
           <div class="col-12">
             <div class="form-check">

@@ -8,9 +8,22 @@ class Branch(models.Model):
         on_delete=models.CASCADE,
         related_name='branches',
     )
+    DAYS = [
+        (0, 'Saturday'),
+        (1, 'Sunday'),
+        (2, 'Monday'),
+        (3, 'Tuesday'),
+        (4, 'Wednesday'),
+        (5, 'Thursday'),
+        (6, 'Friday'),
+    ]
+
     name = models.CharField(max_length=60)
     address = models.TextField()
     phone = models.CharField(max_length=30)
+    from_time = models.TimeField(null=True, blank=True)
+    to_time = models.TimeField(null=True, blank=True)
+    vacation_days = models.JSONField(default=list, blank=True)
     is_active = models.BooleanField(default=True)
     created_at = models.DateTimeField(auto_now_add=True)
 

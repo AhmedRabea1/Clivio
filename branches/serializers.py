@@ -5,8 +5,15 @@ from .models import Branch, UserBranchAssignment
 class BranchSerializer(serializers.ModelSerializer):
     class Meta:
         model = Branch
-        fields = ('id', 'name', 'address', 'phone', 'is_active')
+        fields = ('id', 'name', 'address', 'phone', 'from_time', 'to_time', 'vacation_days', 'is_active')
         read_only_fields = ('id',)
+
+    def validate_vacation_days(self, value):
+        valid = {0, 1, 2, 3, 4, 5, 6}
+        invalid = [d for d in value if d not in valid]
+        if invalid:
+            raise serializers.ValidationError(f'Invalid day indexes: {invalid}. Use 0 (Sat) to 6 (Fri).')
+        return list(set(value))  # remove duplicates
 
     def validate_name(self, value):
         request = self.context.get('request')
