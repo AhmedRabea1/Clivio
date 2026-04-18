@@ -65,12 +65,18 @@ def api_branches(request):
             BranchSerializer(branch, context={'request': request}).data,
             status=status.HTTP_201_CREATED,
         )
-    return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+    errors = serializer.errors
+    # Flatten field errors into a single message
+    message = next(
+        (str(v[0]) for v in errors.values() if v),
+        'Invalid data.'
+    )
+    return Response({'message': message}, status=status.HTTP_400_BAD_REQUEST)
 
 
 # ─── Branch detail / update ────────────────────────────────────────────────────
 
-@api_view(['GET', 'PATCH'])
+@api_view(['GET', 'PATCH', 'DELETE'])
 @permission_classes([IsAuthenticated])
 def api_branch_detail(request, pk):
     """
@@ -88,6 +94,13 @@ def api_branch_detail(request, pk):
     denied = _require_super_admin(request)
     if denied:
         return denied
+
+    if request.method == 'DELETE':
+        denied = _require_super_admin(request)
+        if denied:
+            return denied
+        branch.delete()
+        return Response(status=status.HTTP_204_NO_CONTENT)
 
     serializer = BranchSerializer(branch, data=request.data, partial=True, context={'request': request})
     if serializer.is_valid():
