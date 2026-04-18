@@ -172,7 +172,8 @@ Consume the reset token from the email link and set a new password.
 
 > `GET` is **public** — no token required.
 > `POST` / `PATCH` require a **Super Admin** token.
-> **Content-Type:** `application/json` — `logo` and `hero_image` must be base64 encoded strings.
+> **Content-Type:** `multipart/form-data` — images are uploaded as files, not base64.
+> ⚠️ Do **NOT** set `Content-Type` manually — the browser/fetch sets it automatically with the correct boundary.
 
 ---
 
@@ -185,8 +186,10 @@ Retrieve clinic branding and settings.
 {
   "id": 1,
   "clinic_name": "Clivio Dermatology",
-  "logo_url": "https://clivio.onrender.com/media/config/logos/logo.png",
-  "hero_image_url": "https://clivio.onrender.com/media/config/hero/hero.jpg",
+  "logo": "/media/attachments/logo.png",
+  "logo_url": "https://clivio.onrender.com/media/attachments/logo.png",
+  "hero_image": "/media/attachments/hero.jpg",
+  "hero_image_url": "https://clivio.onrender.com/media/attachments/hero.jpg",
   "slogan": "Your skin, our care",
   "sub_slogan": "Expert dermatology since 2015",
   "footer_info": "© 2026 Clivio Dermatology. All rights reserved.",
@@ -200,6 +203,8 @@ Retrieve clinic branding and settings.
 }
 ```
 
+> Use `logo_url` and `hero_image_url` directly in `<img src>` — they are absolute URLs.
+
 **Response `404 Not Found`:**
 ```json
 { "detail": "No configuration found." }
@@ -210,14 +215,15 @@ Retrieve clinic branding and settings.
 ### POST `/api/configuration`
 Create configuration for the first time. **Super Admin only.**
 
-**Content-Type:** `application/json`
+**Content-Type:** `multipart/form-data`
 
 | Field | Type | Required |
 |-------|------|----------|
 | `clinic_name` | string | ✅ |
-| `logo` | base64 string | ✅ |
-| `hero_image` | base64 string | ✅ |
+| `logo` | file (image) | ✅ |
+| `hero_image` | file (image) | ✅ |
 | `primary_color` | hex string e.g. `#1ABC9C` | ✅ |
+| `secondary_color` | hex string | ❌ |
 | `slogan` | string | ❌ |
 | `sub_slogan` | string | ❌ |
 | `footer_info` | string | ❌ |
@@ -225,7 +231,22 @@ Create configuration for the first time. **Super Admin only.**
 | `instagram_url` | URL | ❌ |
 | `facebook_url` | URL | ❌ |
 | `whatsapp_url` | URL | ❌ |
-| `secondary_color` | hex string | ❌ |
+
+**JavaScript example:**
+```javascript
+const formData = new FormData();
+formData.append('clinic_name', 'Clivio Dermatology');
+formData.append('primary_color', '#1ABC9C');
+formData.append('logo', logoFile);        // File from <input type="file">
+formData.append('hero_image', heroFile);  // File from <input type="file">
+
+const res = await fetch('https://clivio.onrender.com/api/configuration', {
+  method: 'POST',
+  headers: { 'Authorization': `Bearer ${accessToken}` },
+  body: formData,
+  // ⚠️ No Content-Type header — let the browser set it
+});
+```
 
 **Response `201 Created`:** Full configuration object (same shape as GET).
 
@@ -238,11 +259,24 @@ Create configuration for the first time. **Super Admin only.**
 
 ### PATCH `/api/configuration`
 Update existing configuration. **Super Admin only.**
-All fields optional — only send what you want to change.
+All fields are optional — only send what you want to change.
 
-**Content-Type:** `application/json`
+**Content-Type:** `multipart/form-data`
 
-**Response `200 OK`:** Updated configuration object.
+**JavaScript example:**
+```javascript
+const formData = new FormData();
+formData.append('primary_color', '#e11d48');  // only changed fields
+formData.append('logo', newLogoFile);          // only if updating logo
+
+const res = await fetch('https://clivio.onrender.com/api/configuration', {
+  method: 'PATCH',
+  headers: { 'Authorization': `Bearer ${accessToken}` },
+  body: formData,
+});
+```
+
+**Response `200 OK`:** Updated configuration object (same shape as GET).
 
 **Response `404 Not Found`:**
 ```json
