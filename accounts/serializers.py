@@ -11,7 +11,22 @@ class ClinicSerializer(serializers.ModelSerializer):
 class BranchMiniSerializer(serializers.Serializer):
     id = serializers.IntegerField()
     name = serializers.CharField()
-    city = serializers.CharField()
+
+
+class DayScheduleSerializer(serializers.Serializer):
+    day = serializers.IntegerField(min_value=0, max_value=6)
+    from_time = serializers.TimeField()
+    to_time = serializers.TimeField()
+
+    def validate(self, attrs):
+        if attrs['from_time'] >= attrs['to_time']:
+            raise serializers.ValidationError('from_time must be before to_time.')
+        return attrs
+
+
+class BranchScheduleSerializer(serializers.Serializer):
+    branch_id = serializers.IntegerField()
+    days = DayScheduleSerializer(many=True)
 
 
 class UserSerializer(serializers.ModelSerializer):
@@ -30,11 +45,20 @@ class UserSerializer(serializers.ModelSerializer):
         read_only_fields = ('clinic', 'date_joined')
 
     def get_assigned_branches(self, obj):
+        from branches.models import DoctorSchedule
         assignments = obj.branch_assignments.select_related('branch').all()
-        return [
-            {'id': a.branch.id, 'name': a.branch.name, 'city': a.branch.city}
-            for a in assignments
-        ]
+        result = []
+        for a in assignments:
+            schedules = DoctorSchedule.objects.filter(user=obj, branch=a.branch)
+            result.append({
+                'id': a.branch.id,
+                'name': a.branch.name,
+                'schedule': [
+                    {'day': s.day, 'from_time': str(s.from_time)[:5], 'to_time': str(s.to_time)[:5]}
+                    for s in schedules
+                ],
+            })
+        return result
 
     def get_branch_count(self, obj):
         return obj.branch_assignments.count()
@@ -42,18 +66,13 @@ class UserSerializer(serializers.ModelSerializer):
 
 class UserCreateSerializer(serializers.ModelSerializer):
     password = serializers.CharField(write_only=True, min_length=6)
-    branch_ids = serializers.ListField(
-        child=serializers.IntegerField(),
-        write_only=True,
-        required=False,
-        allow_empty=True,
-    )
+    branch_schedules = BranchScheduleSerializer(many=True, write_only=True, required=False)
 
     class Meta:
         model = User
         fields = (
             'name', 'email', 'role', 'phone',
-            'specialty', 'role_title', 'password', 'branch_ids',
+            'specialty', 'role_title', 'password', 'branch_schedules',
         )
 
     def validate_email(self, value):
@@ -66,17 +85,32 @@ class UserCreateSerializer(serializers.ModelSerializer):
         return value.lower()
 
     def validate(self, attrs):
-        role = attrs.get('role')
-        branch_ids = attrs.get('branch_ids', [])
-        if role in (User.Role.DOCTOR, User.Role.ASSISTANT) and not branch_ids:
-            raise serializers.ValidationError(
-                {'branch_ids': 'At least one branch must be assigned.'}
-            )
+        role = attrs.get('role') or (self.instance.role if self.instance else None)
+        if role in (User.Role.DOCTOR, User.Role.ASSISTANT):
+            if not attrs.get('branch_schedules'):
+                raise serializers.ValidationError(
+                    {'branch_schedules': 'At least one branch with schedule is required.'}
+                )
         return attrs
 
+    def _save_schedules(self, user, branch_schedules, request):
+        from branches.models import Branch, UserBranchAssignment, DoctorSchedule
+        for bs in branch_schedules:
+            try:
+                branch = Branch.objects.get(pk=bs['branch_id'], clinic=request.user.clinic, is_active=True)
+            except Branch.DoesNotExist:
+                continue
+            UserBranchAssignment.objects.get_or_create(
+                user=user, branch=branch, defaults={'assigned_by': request.user}
+            )
+            for day_data in bs.get('days', []):
+                DoctorSchedule.objects.update_or_create(
+                    user=user, branch=branch, day=day_data['day'],
+                    defaults={'from_time': day_data['from_time'], 'to_time': day_data['to_time']},
+                )
+
     def create(self, validated_data):
-        from branches.models import Branch, UserBranchAssignment
-        branch_ids = validated_data.pop('branch_ids', [])
+        branch_schedules = validated_data.pop('branch_schedules', [])
         password = validated_data.pop('password')
         request = self.context.get('request')
 
@@ -84,17 +118,23 @@ class UserCreateSerializer(serializers.ModelSerializer):
         user.clinic = request.user.clinic
         user.set_password(password)
         user.save()
-
-        if branch_ids:
-            branches = Branch.objects.filter(
-                id__in=branch_ids, clinic=request.user.clinic, is_active=True
-            )
-            for branch in branches:
-                UserBranchAssignment.objects.get_or_create(
-                    user=user, branch=branch,
-                    defaults={'assigned_by': request.user}
-                )
+        self._save_schedules(user, branch_schedules, request)
         return user
+
+    def update(self, instance, validated_data):
+        branch_schedules = validated_data.pop('branch_schedules', None)
+        password = validated_data.pop('password', None)
+        request = self.context.get('request')
+
+        for attr, value in validated_data.items():
+            setattr(instance, attr, value)
+        if password:
+            instance.set_password(password)
+        instance.save()
+
+        if branch_schedules is not None:
+            self._save_schedules(instance, branch_schedules, request)
+        return instance
 
 
 class UserUpdateBranchesSerializer(serializers.Serializer):

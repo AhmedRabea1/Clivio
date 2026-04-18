@@ -36,6 +36,34 @@ class Branch(models.Model):
         return f'{self.name} — {self.clinic.name}'
 
 
+class DoctorSchedule(models.Model):
+    DAYS = [
+        (0, 'Saturday'), (1, 'Sunday'), (2, 'Monday'),
+        (3, 'Tuesday'), (4, 'Wednesday'), (5, 'Thursday'), (6, 'Friday'),
+    ]
+
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name='schedules',
+    )
+    branch = models.ForeignKey(
+        Branch,
+        on_delete=models.CASCADE,
+        related_name='doctor_schedules',
+    )
+    day = models.PositiveSmallIntegerField(choices=DAYS)
+    from_time = models.TimeField()
+    to_time = models.TimeField()
+
+    class Meta:
+        unique_together = ('user', 'branch', 'day')
+        ordering = ['branch', 'day']
+
+    def __str__(self):
+        return f'{self.user.name} @ {self.branch.name} — {self.get_day_display()}'
+
+
 class UserBranchAssignment(models.Model):
     user = models.ForeignKey(
         settings.AUTH_USER_MODEL,
