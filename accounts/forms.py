@@ -50,6 +50,7 @@ class ConfigurationForm(forms.ModelForm):
         model = Configuration
         fields = (
             'clinic_name',
+            'logo', 'hero_image',
             'slogan', 'sub_slogan', 'footer_info',
             'linkedin_url', 'instagram_url', 'facebook_url', 'whatsapp_url',
             'primary_color', 'secondary_color',

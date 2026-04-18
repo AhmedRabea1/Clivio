@@ -129,35 +129,19 @@ def user_delete(request, pk):
 
 @login_required
 def configuration_view(request):
-    import base64 as b64mod
     clinic = request.user.clinic
     config = Configuration.objects.filter(clinic=clinic).first()
-    form = ConfigurationForm(request.POST or None, instance=config)
+    form = ConfigurationForm(request.POST or None, request.FILES or None, instance=config)
 
     if request.method == 'POST' and form.is_valid():
         cfg = form.save(commit=False)
         cfg.clinic = clinic
-
-        # Handle file uploads — read bytes and store as binary
-        logo_file = request.FILES.get('logo')
-        hero_file = request.FILES.get('hero_image')
-        if logo_file:
-            cfg.logo = logo_file.read()
-        if hero_file:
-            cfg.hero_image = hero_file.read()
-
         cfg.save()
         messages.success(request, 'Configuration saved successfully.')
         return redirect('configuration')
 
-    # Build base64 previews for current images
-    logo_preview = None
-    hero_preview = None
-    if config:
-        if config.logo:
-            logo_preview = 'data:image/png;base64,' + b64mod.b64encode(bytes(config.logo)).decode()
-        if config.hero_image:
-            hero_preview = 'data:image/png;base64,' + b64mod.b64encode(bytes(config.hero_image)).decode()
+    logo_preview = config.logo.url if config and config.logo else None
+    hero_preview = config.hero_image.url if config and config.hero_image else None
 
     return render(request, 'accounts/configuration.html', {
         'form': form,

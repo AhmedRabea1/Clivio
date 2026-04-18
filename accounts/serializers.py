@@ -1,25 +1,5 @@
-import base64
 from rest_framework import serializers
 from .models import User, Clinic, Configuration
-
-
-class Base64BinaryField(serializers.Field):
-    """
-    Accepts a base64 string, stores raw bytes in the DB.
-    Returns a base64 string in responses.
-    """
-    def to_representation(self, value):
-        if value is None:
-            return None
-        return base64.b64encode(bytes(value)).decode('utf-8')
-
-    def to_internal_value(self, data):
-        if not isinstance(data, str):
-            raise serializers.ValidationError('Expected a base64 encoded string.')
-        try:
-            return base64.b64decode(data)
-        except Exception:
-            raise serializers.ValidationError('Invalid base64 data.')
 
 
 class ClinicSerializer(serializers.ModelSerializer):
@@ -133,26 +113,33 @@ class UserUpdateBranchesSerializer(serializers.Serializer):
 
 
 class ConfigurationSerializer(serializers.ModelSerializer):
-    logo = Base64BinaryField(required=False, allow_null=True)
-    hero_image = Base64BinaryField(required=False, allow_null=True)
+    logo = serializers.ImageField(required=False, allow_null=True, use_url=True)
+    hero_image = serializers.ImageField(required=False, allow_null=True, use_url=True)
+    logo_url = serializers.SerializerMethodField()
+    hero_image_url = serializers.SerializerMethodField()
 
     class Meta:
         model = Configuration
         fields = (
-            'id', 'clinic_name', 'logo', 'hero_image',
+            'id', 'clinic_name',
+            'logo', 'logo_url',
+            'hero_image', 'hero_image_url',
             'slogan', 'sub_slogan', 'footer_info',
             'linkedin_url', 'instagram_url', 'facebook_url', 'whatsapp_url',
             'primary_color', 'secondary_color', 'updated_at',
         )
 
-    def validate(self, attrs):
-        # On create (no instance), logo and hero_image are required
-        if not self.instance:
-            if not attrs.get('logo'):
-                raise serializers.ValidationError({'logo': 'Logo is required.'})
-            if not attrs.get('hero_image'):
-                raise serializers.ValidationError({'hero_image': 'Hero image is required.'})
-        return attrs
+    def get_logo_url(self, obj):
+        request = self.context.get('request')
+        if obj.logo and request:
+            return request.build_absolute_uri(obj.logo.url)
+        return None
+
+    def get_hero_image_url(self, obj):
+        request = self.context.get('request')
+        if obj.hero_image and request:
+            return request.build_absolute_uri(obj.hero_image.url)
+        return None
 
     def validate_primary_color(self, value):
         if not value.startswith('#') or len(value) not in (4, 7):

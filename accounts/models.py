@@ -9,8 +9,8 @@ class Configuration(models.Model):
         related_name='configuration',
     )
     clinic_name = models.CharField(max_length=255)
-    logo = models.BinaryField(null=True, blank=True)
-    hero_image = models.BinaryField(null=True, blank=True)
+    logo = models.ImageField(upload_to='attachments/', null=True, blank=True)
+    hero_image = models.ImageField(upload_to='attachments/', null=True, blank=True)
     slogan = models.CharField(max_length=255, blank=True)
     sub_slogan = models.CharField(max_length=255, blank=True)
     footer_info = models.TextField(blank=True)

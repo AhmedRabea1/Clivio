@@ -5,7 +5,11 @@
       "Bash(python manage.py makemigrations appointments)",
       "Bash(python manage.py shell -c ':*)",
       "Bash(python manage.py migrate appointments)",
-      "Bash(python manage.py check)"
+      "Bash(python manage.py check)",
+      "Bash(python manage.py shell -c ' *)",
+      "Bash(python manage.py makemigrations accounts)",
+      "Bash(python manage.py migrate)",
+      "Bash(python manage.py migrate accounts --fake)"
     ]
   }
 }
