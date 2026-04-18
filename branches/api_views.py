@@ -27,7 +27,7 @@ def api_branches(request):
     POST /api/branches  — create a new branch (super_admin only)
     """
     if request.method == 'GET':
-        qs = Branch.objects.filter(clinic=request.user.clinic).order_by('name')
+        qs = Branch.objects.filter(clinic=request.user.clinic).order_by('-created_at')
 
         # Pagination
         page_size = 10
