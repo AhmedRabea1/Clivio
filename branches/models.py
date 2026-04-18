@@ -9,12 +9,8 @@ class Branch(models.Model):
         related_name='branches',
     )
     name = models.CharField(max_length=60)
-    city = models.CharField(max_length=100, default='')
-    area = models.CharField(max_length=100, blank=True)
     address = models.TextField()
     phone = models.CharField(max_length=30)
-    opening_time = models.TimeField(null=True, blank=True)
-    closing_time = models.TimeField(null=True, blank=True)
     is_active = models.BooleanField(default=True)
     created_at = models.DateTimeField(auto_now_add=True)
 

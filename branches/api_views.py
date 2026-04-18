@@ -27,9 +27,32 @@ def api_branches(request):
     POST /api/branches  — create a new branch (super_admin only)
     """
     if request.method == 'GET':
-        qs = Branch.objects.filter(clinic=request.user.clinic).prefetch_related('user_assignments__user')
-        serializer = BranchSerializer(qs, many=True, context={'request': request})
-        return Response(serializer.data)
+        qs = Branch.objects.filter(clinic=request.user.clinic).order_by('name')
+
+        # Pagination
+        page_size = 10
+        try:
+            page = max(1, int(request.query_params.get('page', 1)))
+        except ValueError:
+            page = 1
+        total = qs.count()
+        start = (page - 1) * page_size
+        end = start + page_size
+        results = qs[start:end]
+
+        base_url = request.build_absolute_uri(request.path)
+        next_url = f'{base_url}?page={page + 1}' if end < total else None
+        prev_url = f'{base_url}?page={page - 1}' if page > 1 else None
+
+        serializer = BranchSerializer(results, many=True, context={'request': request})
+        return Response({
+            'total': total,
+            'page_size': page_size,
+            'page': page,
+            'next': next_url,
+            'previous': prev_url,
+            'results': serializer.data,
+        })
 
     denied = _require_super_admin(request)
     if denied:
@@ -94,23 +117,6 @@ def api_branch_status(request, pk):
     is_active = request.data.get('is_active')
     if is_active is None:
         return Response({'error': 'is_active field is required.'}, status=status.HTTP_400_BAD_REQUEST)
-
-    if not is_active:
-        from django.utils import timezone
-        from appointments.models import Appointment
-        upcoming = Appointment.objects.filter(
-            branch=branch,
-            status=Appointment.Status.CONFIRMED,
-            date_time__gte=timezone.now(),
-        ).count()
-        if upcoming > 0:
-            return Response(
-                {
-                    'error': f'Cannot deactivate branch. It has {upcoming} upcoming confirmed appointment(s).',
-                    'upcoming_appointments': upcoming,
-                },
-                status=status.HTTP_409_CONFLICT,
-            )
 
     branch.is_active = bool(is_active)
     branch.save()

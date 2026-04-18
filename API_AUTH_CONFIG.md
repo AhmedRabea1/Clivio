@@ -292,29 +292,33 @@ const res = await fetch('https://clivio.onrender.com/api/configuration', {
 
 ---
 
-### GET `/api/branches`
-List all branches for the clinic.
+### GET `/api/branches?page=1`
+List branches for the clinic. Paginated — **10 per page**.
+
+**Query params:**
+
+| Param | Type | Description |
+|-------|------|-------------|
+| `page` | integer | Page number (default: 1) |
 
 **Response `200 OK`:**
 ```json
-[
-  {
-    "id": 1,
-    "clinic": 1,
-    "name": "Cairo Branch",
-    "city": "Cairo",
-    "area": "Maadi",
-    "address": "123 Nile St, Maadi",
-    "phone": "+20100000000",
-    "opening_time": "09:00:00",
-    "closing_time": "21:00:00",
-    "is_active": true,
-    "status": "active",
-    "created_at": "2026-04-13T12:00:00Z",
-    "doctor_count": 2,
-    "assistant_count": 1
-  }
-]
+{
+  "total": 25,
+  "page_size": 10,
+  "page": 1,
+  "next": "https://clivio.onrender.com/api/branches?page=2",
+  "previous": null,
+  "results": [
+    {
+      "id": 1,
+      "name": "Cairo Branch",
+      "address": "123 Nile St, Maadi",
+      "phone": "+20100000000",
+      "is_active": true
+    }
+  ]
+}
 ```
 
 ---
@@ -327,10 +331,6 @@ Create a new branch. **Super Admin only.**
 | `name` | string | ✅ |
 | `phone` | string | ✅ |
 | `address` | string | ✅ |
-| `city` | string | ❌ |
-| `area` | string | ❌ |
-| `opening_time` | time `HH:MM` | ❌ |
-| `closing_time` | time `HH:MM` | ❌ |
 | `is_active` | boolean | ❌ (default: true) |
 
 **Response `201 Created`:** Full branch object.

@@ -3,27 +3,10 @@ from .models import Branch, UserBranchAssignment
 
 
 class BranchSerializer(serializers.ModelSerializer):
-    doctor_count = serializers.SerializerMethodField()
-    assistant_count = serializers.SerializerMethodField()
-    status = serializers.SerializerMethodField()
-
     class Meta:
         model = Branch
-        fields = (
-            'id', 'clinic', 'name', 'city', 'area', 'address', 'phone',
-            'opening_time', 'closing_time', 'is_active', 'status',
-            'created_at', 'doctor_count', 'assistant_count',
-        )
-        read_only_fields = ('clinic', 'created_at')
-
-    def get_doctor_count(self, obj):
-        return obj.user_assignments.filter(user__role='doctor', user__is_active=True).count()
-
-    def get_assistant_count(self, obj):
-        return obj.user_assignments.filter(user__role='assistant', user__is_active=True).count()
-
-    def get_status(self, obj):
-        return 'active' if obj.is_active else 'inactive'
+        fields = ('id', 'name', 'address', 'phone', 'is_active')
+        read_only_fields = ('id',)
 
     def validate_name(self, value):
         request = self.context.get('request')
