@@ -14,6 +14,7 @@ from accounts.api_views import (
 )
 from branches.api_views import (
     api_branches, api_branch_detail, api_branch_status, api_branch_users,
+    api_public_branches,
 )
 
 api_urlpatterns = [
@@ -33,6 +34,7 @@ api_urlpatterns = [
     # Configuration
     path('configuration',        api_configuration,        name='api_configuration'),
     path('public/configuration', api_public_configuration, name='api_public_configuration'),
+    path('public/branches',      api_public_branches,      name='api_public_branches'),
 
     # Branches
     path('branches',                      api_branches,       name='api_branches'),

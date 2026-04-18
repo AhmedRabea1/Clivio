@@ -1,5 +1,29 @@
 from rest_framework import serializers
+from accounts.models import User
 from .models import Branch, UserBranchAssignment
+
+
+class PublicBranchSerializer(serializers.ModelSerializer):
+    total_doctors = serializers.SerializerMethodField()
+    working_hours = serializers.SerializerMethodField()
+    vacation_days_labels = serializers.SerializerMethodField()
+
+    DAY_LABELS = {0: 'Saturday', 1: 'Sunday', 2: 'Monday', 3: 'Tuesday', 4: 'Wednesday', 5: 'Thursday', 6: 'Friday'}
+
+    class Meta:
+        model = Branch
+        fields = ('id', 'name', 'address', 'phone', 'working_hours', 'vacation_days', 'vacation_days_labels', 'is_active', 'total_doctors')
+
+    def get_total_doctors(self, obj):
+        return obj.user_assignments.filter(user__role=User.Role.DOCTOR, user__is_active=True).count()
+
+    def get_working_hours(self, obj):
+        if obj.from_time and obj.to_time:
+            return {'from': obj.from_time.strftime('%H:%M'), 'to': obj.to_time.strftime('%H:%M')}
+        return None
+
+    def get_vacation_days_labels(self, obj):
+        return [self.DAY_LABELS[d] for d in obj.vacation_days if d in self.DAY_LABELS]
 
 
 class BranchSerializer(serializers.ModelSerializer):

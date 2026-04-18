@@ -1,11 +1,11 @@
 from rest_framework import status
 from rest_framework.decorators import api_view, permission_classes
-from rest_framework.permissions import IsAuthenticated
+from rest_framework.permissions import IsAuthenticated, AllowAny
 from rest_framework.response import Response
 
 from accounts.models import User
 from .models import Branch, UserBranchAssignment
-from .serializers import BranchSerializer, BranchUserSerializer
+from .serializers import BranchSerializer, BranchUserSerializer, PublicBranchSerializer
 
 
 def _require_super_admin(request):
@@ -15,6 +15,17 @@ def _require_super_admin(request):
             status=status.HTTP_403_FORBIDDEN,
         )
     return None
+
+
+# ─── Public branches endpoint ─────────────────────────────────────────────────
+
+@api_view(['GET'])
+@permission_classes([AllowAny])
+def api_public_branches(request):
+    """GET /api/public/branches — no auth required, returns all active branches with doctor count."""
+    qs = Branch.objects.prefetch_related('user_assignments__user').filter(is_active=True).order_by('-created_at')
+    serializer = PublicBranchSerializer(qs, many=True)
+    return Response({'total': qs.count(), 'results': serializer.data})
 
 
 # ─── Branch list / create ──────────────────────────────────────────────────────
