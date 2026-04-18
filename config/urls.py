@@ -10,7 +10,7 @@ from accounts.api_views import (
     api_login, api_refresh, api_logout,
     api_forgot_password, api_reset_password,
     api_users, api_user_detail, api_user_status, api_user_branches,
-    api_configuration,
+    api_configuration, api_public_configuration,
 )
 from branches.api_views import (
     api_branches, api_branch_detail, api_branch_status, api_branch_users,
@@ -31,7 +31,8 @@ api_urlpatterns = [
     path('users/<int:pk>/branches',  api_user_branches,  name='api_user_branches'),
 
     # Configuration
-    path('configuration', api_configuration, name='api_configuration'),
+    path('configuration',        api_configuration,        name='api_configuration'),
+    path('public/configuration', api_public_configuration, name='api_public_configuration'),
 
     # Branches
     path('branches',                      api_branches,       name='api_branches'),

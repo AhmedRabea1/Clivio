@@ -324,6 +324,18 @@ def api_user_branches(request, pk):
     return Response(UserSerializer(user).data)
 
 
+# ─── Public configuration endpoint ───────────────────────────────────────────
+
+@api_view(['GET'])
+@permission_classes([AllowAny])
+def api_public_configuration(request):
+    """GET /api/public/configuration — no auth required, for external portals."""
+    config = Configuration.objects.select_related('clinic').first()
+    if not config:
+        return Response({'detail': 'No configuration found.'}, status=status.HTTP_404_NOT_FOUND)
+    return Response(ConfigurationSerializer(config, context={'request': request}).data)
+
+
 # ─── Configuration endpoint ────────────────────────────────────────────────────
 
 @api_view(['GET', 'POST', 'PATCH'])
