@@ -10,7 +10,7 @@ class BranchSerializer(serializers.ModelSerializer):
     class Meta:
         model = Branch
         fields = (
-            'id', 'clinic', 'name', 'city', 'area', 'address', 'phone', 'email',
+            'id', 'clinic', 'name', 'city', 'area', 'address', 'phone',
             'opening_time', 'closing_time', 'is_active', 'status',
             'created_at', 'doctor_count', 'assistant_count',
         )

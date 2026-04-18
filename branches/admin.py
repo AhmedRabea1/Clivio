@@ -4,7 +4,7 @@ from .models import Branch, UserBranchAssignment
 
 @admin.register(Branch)
 class BranchAdmin(admin.ModelAdmin):
-    list_display = ('name', 'clinic', 'phone', 'email', 'is_active', 'created_at')
+    list_display = ('name', 'clinic', 'phone', 'is_active', 'created_at')
     list_filter = ('is_active', 'clinic')
     search_fields = ('name', 'clinic__name')
 

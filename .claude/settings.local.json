@@ -9,7 +9,9 @@
       "Bash(python manage.py shell -c ' *)",
       "Bash(python manage.py makemigrations accounts)",
       "Bash(python manage.py migrate)",
-      "Bash(python manage.py migrate accounts --fake)"
+      "Bash(python manage.py migrate accounts --fake)",
+      "Bash(python manage.py makemigrations branches)",
+      "Bash(python manage.py migrate branches)"
     ]
   }
 }

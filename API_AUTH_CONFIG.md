@@ -285,6 +285,115 @@ const res = await fetch('https://clivio.onrender.com/api/configuration', {
 
 ---
 
+## Branch Endpoints
+
+> All branch endpoints require a **Super Admin** token.
+> **Content-Type:** `application/json`
+
+---
+
+### GET `/api/branches`
+List all branches for the clinic.
+
+**Response `200 OK`:**
+```json
+[
+  {
+    "id": 1,
+    "clinic": 1,
+    "name": "Cairo Branch",
+    "city": "Cairo",
+    "area": "Maadi",
+    "address": "123 Nile St, Maadi",
+    "phone": "+20100000000",
+    "opening_time": "09:00:00",
+    "closing_time": "21:00:00",
+    "is_active": true,
+    "status": "active",
+    "created_at": "2026-04-13T12:00:00Z",
+    "doctor_count": 2,
+    "assistant_count": 1
+  }
+]
+```
+
+---
+
+### POST `/api/branches`
+Create a new branch. **Super Admin only.**
+
+| Field | Type | Required |
+|-------|------|----------|
+| `name` | string | ✅ |
+| `phone` | string | ✅ |
+| `address` | string | ✅ |
+| `city` | string | ❌ |
+| `area` | string | ❌ |
+| `opening_time` | time `HH:MM` | ❌ |
+| `closing_time` | time `HH:MM` | ❌ |
+| `is_active` | boolean | ❌ (default: true) |
+
+**Response `201 Created`:** Full branch object.
+
+**Response `400 Bad Request`:**
+```json
+{ "name": ["A branch with this name already exists."] }
+```
+
+---
+
+### GET `/api/branches/:id`
+Retrieve a single branch.
+
+**Response `200 OK`:** Full branch object.
+
+---
+
+### PATCH `/api/branches/:id`
+Update a branch. All fields optional.
+
+**Response `200 OK`:** Updated branch object.
+
+---
+
+### PATCH `/api/branches/:id/status`
+Activate or deactivate a branch.
+
+**Request:**
+```json
+{ "is_active": false }
+```
+
+**Response `200 OK`:**
+```json
+{ "id": 1, "is_active": false }
+```
+
+---
+
+### GET `/api/branches/:id/users`
+List all staff assigned to a branch.
+
+**Response `200 OK`:**
+```json
+[
+  {
+    "id": 1,
+    "name": "Dr. Ahmed",
+    "email": "ahmed@clivio.com",
+    "role": "doctor",
+    "role_display": "Doctor",
+    "phone": "+20100000000",
+    "specialty": "Dermatologist",
+    "role_title": "Senior Doctor",
+    "is_active": true,
+    "assigned_at": "2026-04-13T12:00:00Z"
+  }
+]
+```
+
+---
+
 ## Error Reference
 
 | Status | Meaning |
