@@ -57,8 +57,7 @@ class DoctorSchedule(models.Model):
     to_time = models.TimeField()
 
     class Meta:
-        unique_together = ('user', 'branch', 'day')
-        ordering = ['branch', 'day']
+        ordering = ['branch', 'day', 'from_time']
 
     def __str__(self):
         return f'{self.user.name} @ {self.branch.name} — {self.get_day_display()}'

@@ -45,6 +45,28 @@ class UserForm(forms.ModelForm):
         return user
 
 
+class DoctorForm(forms.Form):
+    name = forms.CharField(
+        max_length=255,
+        widget=forms.TextInput(attrs={'class': 'form-control', 'placeholder': 'Full name'}),
+    )
+    email = forms.EmailField(
+        widget=forms.EmailInput(attrs={'class': 'form-control'}),
+    )
+    phone = forms.CharField(
+        max_length=30,
+        widget=forms.TextInput(attrs={'class': 'form-control', 'placeholder': 'e.g. +20 100 000 0000'}),
+    )
+    specialty = forms.CharField(
+        required=False, max_length=100,
+        widget=forms.TextInput(attrs={'class': 'form-control', 'placeholder': 'e.g. Cardiology'}),
+    )
+    is_active = forms.BooleanField(
+        required=False, initial=True,
+        widget=forms.CheckboxInput(attrs={'class': 'form-check-input'}),
+    )
+
+
 class ConfigurationForm(forms.ModelForm):
     class Meta:
         model = Configuration

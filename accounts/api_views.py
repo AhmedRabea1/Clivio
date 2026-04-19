@@ -12,11 +12,11 @@ from rest_framework.response import Response
 from rest_framework_simplejwt.tokens import RefreshToken
 from rest_framework_simplejwt.exceptions import TokenError
 
-from .models import User, Configuration
+from .models import User, Configuration, Doctor
 from .serializers import (
     LoginSerializer, UserSerializer,
     UserCreateSerializer, UserUpdateBranchesSerializer,
-    ConfigurationSerializer,
+    ConfigurationSerializer, DoctorSerializer, DoctorCreateSerializer,
 )
 from branches.models import Branch, UserBranchAssignment
 
@@ -237,17 +237,14 @@ def api_users(request):
     return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
 
-@api_view(['GET', 'PATCH'])
+@api_view(['GET', 'PATCH', 'DELETE'])
 @permission_classes([IsAuthenticated])
 def api_user_detail(request, pk):
     """
-    GET   /api/users/:id  — retrieve user
-    PATCH /api/users/:id  — update user details
+    GET    /api/users/:id  — retrieve user
+    PATCH  /api/users/:id  — update user details
+    DELETE /api/users/:id  — delete user (super_admin only)
     """
-    denied = _require_super_admin(request)
-    if denied:
-        return denied
-
     try:
         user = User.objects.get(pk=pk, clinic=request.user.clinic)
     except User.DoesNotExist:
@@ -255,6 +252,14 @@ def api_user_detail(request, pk):
 
     if request.method == 'GET':
         return Response(UserSerializer(user).data)
+
+    denied = _require_super_admin(request)
+    if denied:
+        return denied
+
+    if request.method == 'DELETE':
+        user.delete()
+        return Response(status=status.HTTP_204_NO_CONTENT)
 
     serializer = UserCreateSerializer(
         user, data=request.data, partial=True, context={'request': request}
@@ -322,6 +327,89 @@ def api_user_branches(request, pk):
 
     user.refresh_from_db()
     return Response(UserSerializer(user).data)
+
+
+# ─── Doctor endpoints ─────────────────────────────────────────────────────────
+
+@api_view(['GET', 'POST'])
+@permission_classes([IsAuthenticated])
+def api_doctors(request):
+    """
+    GET  /api/doctors  — list all doctors in clinic
+    POST /api/doctors  — create a new doctor
+    """
+    denied = _require_super_admin(request)
+    if denied:
+        return denied
+
+    if request.method == 'GET':
+        doctors = Doctor.objects.filter(
+            user__clinic=request.user.clinic
+        ).select_related('user')
+        return Response(DoctorSerializer(doctors, many=True).data)
+
+    serializer = DoctorCreateSerializer(data=request.data, context={'request': request})
+    if serializer.is_valid():
+        doctor = serializer.save()
+        return Response(DoctorSerializer(doctor).data, status=status.HTTP_201_CREATED)
+    return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+
+@api_view(['GET', 'PATCH', 'DELETE'])
+@permission_classes([IsAuthenticated])
+def api_doctor_detail(request, pk):
+    """
+    GET    /api/doctors/:id  — retrieve doctor  (pk = user.id)
+    PATCH  /api/doctors/:id  — update doctor
+    DELETE /api/doctors/:id  — delete doctor
+    """
+    try:
+        doctor = Doctor.objects.select_related('user').get(
+            user__pk=pk, user__clinic=request.user.clinic
+        )
+    except Doctor.DoesNotExist:
+        return Response({'error': 'Doctor not found.'}, status=status.HTTP_404_NOT_FOUND)
+
+    if request.method == 'GET':
+        return Response(DoctorSerializer(doctor).data)
+
+    denied = _require_super_admin(request)
+    if denied:
+        return denied
+
+    if request.method == 'DELETE':
+        doctor.user.delete()
+        return Response(status=status.HTTP_204_NO_CONTENT)
+
+    serializer = DoctorCreateSerializer(doctor, data=request.data, partial=True, context={'request': request})
+    if serializer.is_valid():
+        doctor = serializer.save()
+        return Response(DoctorSerializer(doctor).data)
+    return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+
+@api_view(['PATCH'])
+@permission_classes([IsAuthenticated])
+def api_doctor_status(request, pk):
+    """PATCH /api/doctors/:id/status — activate or deactivate doctor."""
+    denied = _require_super_admin(request)
+    if denied:
+        return denied
+
+    try:
+        doctor = Doctor.objects.select_related('user').get(
+            user__pk=pk, user__clinic=request.user.clinic
+        )
+    except Doctor.DoesNotExist:
+        return Response({'error': 'Doctor not found.'}, status=status.HTTP_404_NOT_FOUND)
+
+    is_active = request.data.get('is_active')
+    if is_active is None:
+        return Response({'error': 'is_active field is required.'}, status=status.HTTP_400_BAD_REQUEST)
+
+    doctor.user.is_active = bool(is_active)
+    doctor.user.save()
+    return Response({'id': doctor.user.id, 'is_active': doctor.user.is_active})
 
 
 # ─── Public configuration endpoint ───────────────────────────────────────────

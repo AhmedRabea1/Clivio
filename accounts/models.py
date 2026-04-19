@@ -46,6 +46,21 @@ class Clinic(models.Model):
         return self.name
 
 
+class Doctor(models.Model):
+    user = models.OneToOneField(
+        'User',
+        on_delete=models.CASCADE,
+        related_name='doctor_profile',
+    )
+    specialty = models.CharField(max_length=100, blank=True)
+
+    class Meta:
+        ordering = ['-user__date_joined']
+
+    def __str__(self):
+        return f'Dr. {self.user.name}'
+
+
 class UserManager(BaseUserManager):
     def create_user(self, email, password=None, **extra_fields):
         if not email:

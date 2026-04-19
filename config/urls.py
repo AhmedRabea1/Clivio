@@ -11,6 +11,7 @@ from accounts.api_views import (
     api_forgot_password, api_reset_password,
     api_users, api_user_detail, api_user_status, api_user_branches,
     api_configuration, api_public_configuration,
+    api_doctors, api_doctor_detail, api_doctor_status,
 )
 from branches.api_views import (
     api_branches, api_branch_detail, api_branch_status, api_branch_users,
@@ -30,6 +31,11 @@ api_urlpatterns = [
     path('users/<int:pk>',           api_user_detail,    name='api_user_detail'),
     path('users/<int:pk>/status',    api_user_status,    name='api_user_status'),
     path('users/<int:pk>/branches',  api_user_branches,  name='api_user_branches'),
+
+    # Doctors
+    path('doctors',                  api_doctors,         name='api_doctors'),
+    path('doctors/<int:pk>',         api_doctor_detail,   name='api_doctor_detail'),
+    path('doctors/<int:pk>/status',  api_doctor_status,   name='api_doctor_status'),
 
     # Configuration
     path('configuration',        api_configuration,        name='api_configuration'),

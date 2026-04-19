@@ -13,7 +13,12 @@
       "Bash(python manage.py makemigrations branches)",
       "Bash(python manage.py migrate branches)",
       "Bash(python manage.py migrate accounts)",
-      "Bash(python manage.py makemigrations accounts branches)"
+      "Bash(python manage.py makemigrations accounts branches)",
+      "Bash(python -c \"from accounts.serializers import UserCreateSerializer, BranchScheduleSerializer; print\\('OK'\\)\")",
+      "Bash(DJANGO_SETTINGS_MODULE=config.settings python manage.py check)",
+      "Bash(python manage.py runserver 8000)",
+      "Bash(curl -s http://localhost:8000/api/auth/login -X POST -H \"Content-Type: application/json\" -d '{}')",
+      "Bash(python manage.py makemigrations accounts --name add_doctor_model)"
     ]
   }
 }

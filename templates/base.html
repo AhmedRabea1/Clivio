@@ -157,6 +157,9 @@
     <a href="{% url 'user_list' %}" class="{% if 'user' in request.resolver_match.url_name %}active{% endif %}">
       <i class="bi bi-people"></i> Users
     </a>
+    <a href="{% url 'doctor_list' %}" class="{% if 'doctor' in request.resolver_match.url_name %}active{% endif %}">
+      <i class="bi bi-person-badge"></i> Doctors
+    </a>
     <a href="{% url 'patient_list' %}" class="{% if 'patient' in request.resolver_match.url_name %}active{% endif %}">
       <i class="bi bi-person-lines-fill"></i> Patients
     </a>

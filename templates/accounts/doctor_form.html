@@ -1,0 +1,206 @@
+{% extends "base.html" %}
+
+{% block title %}{{ title }} — Clivio{% endblock %}
+{% block page_title %}{{ title }}{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center">
+  <div class="col-lg-9">
+
+    <div class="d-flex align-items-center gap-3 mb-4">
+      <a href="{% url 'doctor_list' %}" class="btn btn-sm btn-outline-secondary">
+        <i class="bi bi-arrow-left"></i>
+      </a>
+      <div>
+        <h5 class="fw-bold mb-0" style="color:#0f172a">{{ title }}</h5>
+        <p class="text-muted small mb-0">Fill in the details below.</p>
+      </div>
+    </div>
+
+    <div class="form-card">
+      <form method="post" novalidate id="doctorForm">
+        {% csrf_token %}
+
+        <div class="row g-3">
+          <div class="col-md-6">
+            <label class="form-label fw-medium small">Full Name <span class="text-danger">*</span></label>
+            {{ form.name }}
+            {% if form.name.errors %}<div class="text-danger small mt-1">{{ form.name.errors.0 }}</div>{% endif %}
+          </div>
+          <div class="col-md-6">
+            <label class="form-label fw-medium small">Email <span class="text-danger">*</span></label>
+            {{ form.email }}
+            {% if form.email.errors %}<div class="text-danger small mt-1">{{ form.email.errors.0 }}</div>{% endif %}
+          </div>
+          <div class="col-md-6">
+            <label class="form-label fw-medium small">Phone <span class="text-danger">*</span></label>
+            {{ form.phone }}
+          </div>
+          <div class="col-md-6">
+            <label class="form-label fw-medium small">Specialty</label>
+            {{ form.specialty }}
+          </div>
+          <div class="col-12">
+            <div class="form-check">
+              {{ form.is_active }}
+              <label class="form-check-label fw-medium small">Active</label>
+            </div>
+          </div>
+        </div>
+
+        {% if branches %}
+        <hr class="my-4" />
+        <div>
+          <label class="form-label fw-medium small d-block mb-1">Branch Schedules</label>
+          <p class="text-muted small mb-3">Select a branch then add the days and time slots the doctor works there.</p>
+          <div id="scheduleError" class="alert alert-danger d-none small py-2"></div>
+          <div class="row g-3">
+            {% for branch in branches %}
+            <div class="col-12">
+              <div class="border rounded p-3" style="background:#f8fafc;">
+                <div class="d-flex align-items-center gap-2 mb-2">
+                  <input class="form-check-input mt-0" type="checkbox"
+                         value="{{ branch.pk }}"
+                         id="branch_{{ branch.pk }}"
+                         onchange="toggleBranch({{ branch.pk }}, this.checked)">
+                  <label class="form-check-label fw-medium small" for="branch_{{ branch.pk }}">
+                    {{ branch.name }}
+                    {% if branch.address %}<span class="text-muted fw-normal"> — {{ branch.address }}</span>{% endif %}
+                  </label>
+                </div>
+                <div id="schedule_{{ branch.pk }}" style="display:none;" class="mt-2">
+                  <div id="slots_{{ branch.pk }}" class="mb-2"></div>
+                  <button type="button" class="btn btn-sm btn-outline-primary mt-1"
+                          onclick="addSlot({{ branch.pk }})">
+                    <i class="bi bi-plus-lg me-1"></i> Add Slot
+                  </button>
+                </div>
+              </div>
+            </div>
+            {% endfor %}
+          </div>
+        </div>
+        {% endif %}
+
+        <hr class="my-4" />
+        <div class="d-flex gap-2 justify-content-end">
+          <a href="{% url 'doctor_list' %}" class="btn btn-outline-secondary">Cancel</a>
+          <button type="submit" class="btn btn-primary px-4">
+            {% if doctor %}Save Changes{% else %}Create Doctor{% endif %}
+          </button>
+        </div>
+
+      </form>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+const DAY_LABELS = {0:'Saturday',1:'Sunday',2:'Monday',3:'Tuesday',4:'Wednesday',5:'Thursday',6:'Friday'};
+
+function buildDayOptions(selected) {
+  return Object.entries(DAY_LABELS).map(([v, l]) =>
+    `<option value="${v}" ${parseInt(v) === parseInt(selected) ? 'selected' : ''}>${l}</option>`
+  ).join('');
+}
+
+function addSlot(branchId, day=0, fromTime='', toTime='') {
+  const container = document.getElementById(`slots_${branchId}`);
+  const row = document.createElement('div');
+  row.className = 'slot-row d-flex align-items-center gap-2 mb-2 flex-wrap';
+  row.innerHTML = `
+    <input type="hidden" name="slot_branch" value="${branchId}">
+    <select name="slot_day" class="form-select form-select-sm" style="width:140px;">
+      ${buildDayOptions(day)}
+    </select>
+    <div class="d-flex align-items-center gap-1">
+      <input type="time" name="slot_from" class="form-control form-control-sm" style="width:120px;" value="${fromTime}" required>
+      <span class="text-muted small px-1">to</span>
+      <input type="time" name="slot_to" class="form-control form-control-sm" style="width:120px;" value="${toTime}" required>
+    </div>
+    <button type="button" class="btn btn-sm btn-outline-danger"
+            onclick="this.closest('.slot-row').remove()" title="Remove slot">
+      <i class="bi bi-x-lg"></i>
+    </button>
+  `;
+  container.appendChild(row);
+}
+
+function toggleBranch(branchId, checked) {
+  const section = document.getElementById(`schedule_${branchId}`);
+  const container = document.getElementById(`slots_${branchId}`);
+  section.style.display = checked ? 'block' : 'none';
+  if (!checked) {
+    container.innerHTML = '';
+  } else if (!container.children.length) {
+    addSlot(branchId);
+  }
+}
+
+// Client-side overlap/duplicate validation before submit
+document.getElementById('doctorForm').addEventListener('submit', function(e) {
+  const errEl = document.getElementById('scheduleError');
+  errEl.classList.add('d-none');
+
+  const rows = document.querySelectorAll('.slot-row');
+  const groups = {};
+  let valid = true;
+
+  rows.forEach(row => {
+    const branch = row.querySelector('[name=slot_branch]').value;
+    const day    = row.querySelector('[name=slot_day]').value;
+    const from   = row.querySelector('[name=slot_from]').value;
+    const to     = row.querySelector('[name=slot_to]').value;
+    if (!from || !to) return;
+    if (from >= to) {
+      errEl.textContent = 'Each slot\'s start time must be before its end time.';
+      errEl.classList.remove('d-none');
+      valid = false;
+      return;
+    }
+    const key = `${branch}_${day}`;
+    if (!groups[key]) groups[key] = [];
+    groups[key].push([from, to]);
+  });
+
+  if (!valid) { e.preventDefault(); return; }
+
+  for (const [, slots] of Object.entries(groups)) {
+    const seen = new Set();
+    for (const [f, t] of slots) {
+      const pair = `${f}-${t}`;
+      if (seen.has(pair)) {
+        errEl.textContent = 'Duplicate time slots found. Please remove duplicates.';
+        errEl.classList.remove('d-none');
+        e.preventDefault(); return;
+      }
+      seen.add(pair);
+    }
+    const sorted = [...slots].sort();
+    for (let i = 0; i < sorted.length - 1; i++) {
+      if (sorted[i][1] > sorted[i+1][0]) {
+        errEl.textContent = 'Overlapping time slots found. Slots on the same day must not overlap.';
+        errEl.classList.remove('d-none');
+        e.preventDefault(); return;
+      }
+    }
+  }
+});
+
+// Pre-populate on edit
+document.addEventListener('DOMContentLoaded', function() {
+  const existing = {{ existing_schedules_json|safe }};
+  if (!existing) return;
+  for (const [branchId, slots] of Object.entries(existing)) {
+    const checkbox = document.getElementById(`branch_${branchId}`);
+    if (!checkbox) continue;
+    checkbox.checked = true;
+    toggleBranch(branchId, true);
+    document.getElementById(`slots_${branchId}`).innerHTML = '';
+    slots.forEach(s => addSlot(branchId, s.day, s.from_time, s.to_time));
+  }
+});
+</script>
+{% endblock %}

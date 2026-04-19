@@ -62,9 +62,19 @@ class BranchUserSerializer(serializers.Serializer):
     role_display = serializers.SerializerMethodField()
     phone = serializers.CharField(source='user.phone')
     specialty = serializers.CharField(source='user.specialty')
-    role_title = serializers.CharField(source='user.role_title')
     is_active = serializers.BooleanField(source='user.is_active')
     assigned_at = serializers.DateTimeField()
+    schedule = serializers.SerializerMethodField()
 
     def get_role_display(self, obj):
         return obj.user.get_role_display()
+
+    def get_schedule(self, obj):
+        from .models import DoctorSchedule
+        schedules = DoctorSchedule.objects.filter(
+            user=obj.user, branch=obj.branch
+        ).order_by('day', 'from_time')
+        return [
+            {'day': s.day, 'from_time': str(s.from_time)[:5], 'to_time': str(s.to_time)[:5]}
+            for s in schedules
+        ]
