@@ -378,7 +378,10 @@ class DoctorCreateSerializer(serializers.Serializer):
 
     def validate_email(self, value):
         request = self.context.get('request')
-        if User.objects.filter(clinic=request.user.clinic, email__iexact=value).exists():
+        qs = User.objects.filter(clinic=request.user.clinic, email__iexact=value)
+        if self.instance:
+            qs = qs.exclude(pk=self.instance.user.pk)
+        if qs.exists():
             raise serializers.ValidationError('This email is already registered.')
         return value.lower()
 
