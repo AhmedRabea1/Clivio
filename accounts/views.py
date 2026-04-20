@@ -253,7 +253,7 @@ def doctor_edit(request, pk):
         new_email = form.cleaned_data['email'].lower()
         email_conflict = User.objects.filter(
             clinic=request.user.clinic, email__iexact=new_email
-        ).exclude(pk=doctor.user.pk).exists()
+        ).exclude(pk=pk).exists()
         if email_conflict:
             form.add_error('email', 'This email is already registered.')
         else:

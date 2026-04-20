@@ -46,6 +46,61 @@ class Clinic(models.Model):
         return self.name
 
 
+class AssistantRole(models.Model):
+    class RoleName(models.TextChoices):
+        VIEW_INVENTORY    = 'view_inventory',    'View Inventory'
+        EDIT_INVENTORY    = 'edit_inventory',    'Edit Inventory'
+        ADD_INVENTORY     = 'add_inventory',     'Add Inventory'
+        DELETE_INVENTORY  = 'delete_inventory',  'Delete Inventory'
+        VIEW_CONFIG       = 'view_config',       'View Configurations'
+        EDIT_CONFIG       = 'edit_config',       'Edit Configurations'
+        VIEW_DOCTOR       = 'view_doctor',       'View Doctor'
+        ADD_DOCTOR        = 'add_doctor',        'Add Doctor'
+        EDIT_DOCTOR       = 'edit_doctor',       'Edit Doctor'
+        DELETE_DOCTOR     = 'delete_doctor',     'Delete Doctor'
+        VIEW_BRANCH       = 'view_branch',       'View Branch'
+        ADD_BRANCH        = 'add_branch',        'Add Branch'
+        EDIT_BRANCH       = 'edit_branch',       'Edit Branch'
+        DELETE_BRANCH     = 'delete_branch',     'Delete Branch'
+        VIEW_PATIENT      = 'view_patient',      'View Patient'
+        ADD_PATIENT       = 'add_patient',       'Add Patient'
+        EDIT_PATIENT      = 'edit_patient',      'Edit Patient'
+        DELETE_PATIENT    = 'delete_patient',    'Delete Patient'
+
+    role_name = models.CharField(max_length=30, choices=RoleName.choices, unique=True)
+
+    class Meta:
+        ordering = ['role_name']
+
+    def __str__(self):
+        return self.get_role_name_display()
+
+
+class Assistant(models.Model):
+    user = models.OneToOneField(
+        'User',
+        on_delete=models.CASCADE,
+        related_name='assistant_profile',
+    )
+    branch = models.ForeignKey(
+        'branches.Branch',
+        on_delete=models.SET_NULL,
+        null=True, blank=True,
+        related_name='assistants',
+    )
+    roles = models.ManyToManyField(
+        AssistantRole,
+        blank=True,
+        related_name='assistants',
+    )
+
+    class Meta:
+        ordering = ['-user__date_joined']
+
+    def __str__(self):
+        return self.user.name
+
+
 class Doctor(models.Model):
     user = models.OneToOneField(
         'User',

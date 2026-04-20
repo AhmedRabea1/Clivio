@@ -12,11 +12,12 @@ from rest_framework.response import Response
 from rest_framework_simplejwt.tokens import RefreshToken
 from rest_framework_simplejwt.exceptions import TokenError
 
-from .models import User, Configuration, Doctor
+from .models import User, Configuration, Doctor, AssistantRole, Assistant
 from .serializers import (
     LoginSerializer, UserSerializer,
     UserCreateSerializer, UserUpdateBranchesSerializer,
     ConfigurationSerializer, DoctorSerializer, DoctorCreateSerializer,
+    AssistantRoleSerializer, AssistantSerializer, AssistantCreateSerializer,
 )
 from branches.models import Branch, UserBranchAssignment
 
@@ -410,6 +411,101 @@ def api_doctor_status(request, pk):
     doctor.user.is_active = bool(is_active)
     doctor.user.save()
     return Response({'id': doctor.user.id, 'is_active': doctor.user.is_active})
+
+
+# ─── Assistant endpoints ──────────────────────────────────────────────────────
+
+@api_view(['GET', 'POST'])
+@permission_classes([IsAuthenticated])
+def api_assistants(request):
+    """
+    GET  /api/assistants  — list all assistants in clinic
+    POST /api/assistants  — create assistant
+    """
+    denied = _require_super_admin(request)
+    if denied:
+        return denied
+
+    if request.method == 'GET':
+        assistants = Assistant.objects.filter(
+            user__clinic=request.user.clinic
+        ).select_related('user', 'branch').prefetch_related('roles')
+        return Response(AssistantSerializer(assistants, many=True).data)
+
+    serializer = AssistantCreateSerializer(data=request.data, context={'request': request})
+    if serializer.is_valid():
+        assistant = serializer.save()
+        return Response(AssistantSerializer(assistant).data, status=status.HTTP_201_CREATED)
+    return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+
+@api_view(['GET', 'PATCH', 'DELETE'])
+@permission_classes([IsAuthenticated])
+def api_assistant_detail(request, pk):
+    """
+    GET    /api/assistants/:id  — retrieve assistant  (pk = user.id)
+    PATCH  /api/assistants/:id  — update assistant
+    DELETE /api/assistants/:id  — delete assistant
+    """
+    try:
+        assistant = Assistant.objects.select_related('user', 'branch').prefetch_related('roles').get(
+            user__pk=pk, user__clinic=request.user.clinic
+        )
+    except Assistant.DoesNotExist:
+        return Response({'error': 'Assistant not found.'}, status=status.HTTP_404_NOT_FOUND)
+
+    if request.method == 'GET':
+        return Response(AssistantSerializer(assistant).data)
+
+    denied = _require_super_admin(request)
+    if denied:
+        return denied
+
+    if request.method == 'DELETE':
+        assistant.user.delete()
+        return Response(status=status.HTTP_204_NO_CONTENT)
+
+    serializer = AssistantCreateSerializer(
+        assistant, data=request.data, partial=True, context={'request': request}
+    )
+    if serializer.is_valid():
+        assistant = serializer.save()
+        return Response(AssistantSerializer(assistant).data)
+    return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+
+@api_view(['PATCH'])
+@permission_classes([IsAuthenticated])
+def api_assistant_status(request, pk):
+    """PATCH /api/assistants/:id/status — activate or deactivate assistant."""
+    denied = _require_super_admin(request)
+    if denied:
+        return denied
+
+    try:
+        assistant = Assistant.objects.select_related('user').get(
+            user__pk=pk, user__clinic=request.user.clinic
+        )
+    except Assistant.DoesNotExist:
+        return Response({'error': 'Assistant not found.'}, status=status.HTTP_404_NOT_FOUND)
+
+    is_active = request.data.get('is_active')
+    if is_active is None:
+        return Response({'error': 'is_active field is required.'}, status=status.HTTP_400_BAD_REQUEST)
+
+    assistant.user.is_active = bool(is_active)
+    assistant.user.save()
+    return Response({'id': assistant.user.id, 'is_active': assistant.user.is_active})
+
+
+# ─── Assistant roles endpoint ─────────────────────────────────────────────────
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def api_assistant_roles(request):
+    """GET /api/assistant-roles — list all predefined assistant roles."""
+    roles = AssistantRole.objects.all()
+    return Response(AssistantRoleSerializer(roles, many=True).data)
 
 
 # ─── Public configuration endpoint ───────────────────────────────────────────
