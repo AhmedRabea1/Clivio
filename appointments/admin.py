@@ -4,8 +4,8 @@ from .models import Patient, AuditLog
 
 @admin.register(Patient)
 class PatientAdmin(admin.ModelAdmin):
-    list_display = ('full_name', 'clinic', 'mobile_number', 'clinic_location', 'doctor', 'status', 'visit_date')
-    list_filter = ('clinic', 'status', 'visit_date')
+    list_display = ('full_name', 'mobile_number', 'date_of_birth', 'created_at')
+    list_filter = ('created_at',)
     search_fields = ('first_name', 'last_name', 'mobile_number')
 
 
