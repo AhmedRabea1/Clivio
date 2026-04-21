@@ -45,7 +45,7 @@ class PublicReservationCreateSerializer(serializers.Serializer):
 
         # Validate doctor if provided
         if attrs.get('doctor_id'):
-            if not Doctor.objects.filter(pk=attrs['doctor_id'], user__is_active=True).exists():
+            if not Doctor.objects.filter(user__pk=attrs['doctor_id'], user__is_active=True).exists():
                 raise serializers.ValidationError({'doctor_id': 'Invalid or inactive doctor.'})
 
         # If mobile is new, patient fields are required
@@ -77,7 +77,7 @@ class PublicReservationCreateSerializer(serializers.Serializer):
         )
 
         branch = Branch.objects.get(pk=data['branch_id'])
-        doctor = Doctor.objects.filter(pk=data.get('doctor_id')).first() if data.get('doctor_id') else None
+        doctor = Doctor.objects.filter(user__pk=data.get('doctor_id')).first() if data.get('doctor_id') else None
 
         reservation = Reservation.objects.create(
             patient=patient,
