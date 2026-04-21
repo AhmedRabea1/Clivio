@@ -20,6 +20,7 @@ class Configuration(models.Model):
     whatsapp_url = models.URLField(blank=True)
     primary_color = models.CharField(max_length=7)    # hex e.g. #1ABC9C
     secondary_color = models.CharField(max_length=7, blank=True)
+    slot_interval = models.PositiveIntegerField(default=30)
     updated_at = models.DateTimeField(auto_now=True)
 
     class Meta:

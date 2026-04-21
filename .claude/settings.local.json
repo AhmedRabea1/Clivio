@@ -20,7 +20,8 @@
       "Bash(curl -s http://localhost:8000/api/auth/login -X POST -H \"Content-Type: application/json\" -d '{}')",
       "Bash(python manage.py makemigrations accounts --name add_doctor_model)",
       "Bash(python manage.py makemigrations accounts --name add_assistant_role)",
-      "Bash(python manage.py makemigrations accounts --name add_assistant_model)"
+      "Bash(python manage.py makemigrations accounts --name add_assistant_model)",
+      "Bash(python manage.py makemigrations accounts --name add_slot_interval_to_configuration)"
     ]
   }
 }

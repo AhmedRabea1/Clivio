@@ -183,8 +183,13 @@ class ConfigurationSerializer(serializers.ModelSerializer):
             'hero_image', 'hero_image_url',
             'slogan', 'sub_slogan', 'footer_info',
             'linkedin_url', 'instagram_url', 'facebook_url', 'whatsapp_url',
-            'primary_color', 'secondary_color', 'updated_at',
+            'primary_color', 'secondary_color', 'slot_interval', 'updated_at',
         )
+
+    def validate_slot_interval(self, value):
+        if not isinstance(value, int) or value <= 0:
+            raise serializers.ValidationError('slot_interval must be a positive integer.')
+        return value
 
     def get_logo_url(self, obj):
         request = self.context.get('request')
