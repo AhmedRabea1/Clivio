@@ -20,7 +20,7 @@ from branches.api_views import (
     api_branches, api_branch_detail, api_branch_status, api_branch_users,
     api_public_branches,
 )
-from appointments.api_views import api_public_book_reservation
+from appointments.api_views import api_public_book_reservation, api_public_slots
 
 api_urlpatterns = [
     # Auth
@@ -55,6 +55,7 @@ api_urlpatterns = [
     path('public/branches',      api_public_branches,      name='api_public_branches'),
     path('public/doctors',        api_public_doctors,           name='api_public_doctors'),
     path('public/reservations',   api_public_book_reservation,  name='api_public_book_reservation'),
+    path('public/slots',          api_public_slots,             name='api_public_slots'),
 
     # Branches
     path('branches',                      api_branches,       name='api_branches'),
