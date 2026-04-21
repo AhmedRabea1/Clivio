@@ -330,6 +330,24 @@ def api_user_branches(request, pk):
     return Response(UserSerializer(user).data)
 
 
+# ─── Public doctor endpoints ──────────────────────────────────────────────────
+
+@api_view(['GET'])
+@permission_classes([AllowAny])
+def api_public_doctors(request):
+    """GET /api/public/doctors?branch_id=1 — no auth required."""
+    branch_id = request.query_params.get('branch_id')
+    if not branch_id:
+        return Response({'error': 'branch_id query param is required.'}, status=status.HTTP_400_BAD_REQUEST)
+
+    doctors = Doctor.objects.filter(
+        user__branch_assignments__branch_id=branch_id,
+        user__is_active=True,
+    ).select_related('user').distinct()
+
+    return Response(DoctorSerializer(doctors, many=True).data)
+
+
 # ─── Doctor endpoints ─────────────────────────────────────────────────────────
 
 @api_view(['GET', 'POST'])

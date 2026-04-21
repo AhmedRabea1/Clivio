@@ -67,6 +67,28 @@ class DoctorForm(forms.Form):
     )
 
 
+class AssistantForm(forms.Form):
+    name = forms.CharField(
+        max_length=255,
+        widget=forms.TextInput(attrs={'class': 'form-control', 'placeholder': 'Full name'}),
+    )
+    email = forms.EmailField(
+        widget=forms.EmailInput(attrs={'class': 'form-control'}),
+    )
+    phone = forms.CharField(
+        max_length=30,
+        widget=forms.TextInput(attrs={'class': 'form-control', 'placeholder': 'e.g. +20 100 000 0000'}),
+    )
+    branch = forms.IntegerField(
+        required=False,
+        widget=forms.Select(attrs={'class': 'form-select'}),
+    )
+    is_active = forms.BooleanField(
+        required=False, initial=True,
+        widget=forms.CheckboxInput(attrs={'class': 'form-check-input'}),
+    )
+
+
 class ConfigurationForm(forms.ModelForm):
     class Meta:
         model = Configuration

@@ -11,6 +11,7 @@ from accounts.api_views import (
     api_forgot_password, api_reset_password,
     api_users, api_user_detail, api_user_status, api_user_branches,
     api_configuration, api_public_configuration,
+    api_public_doctors,
     api_doctors, api_doctor_detail, api_doctor_status,
     api_assistants, api_assistant_detail, api_assistant_status,
     api_assistant_roles,
@@ -51,6 +52,7 @@ api_urlpatterns = [
     path('configuration',        api_configuration,        name='api_configuration'),
     path('public/configuration', api_public_configuration, name='api_public_configuration'),
     path('public/branches',      api_public_branches,      name='api_public_branches'),
+    path('public/doctors',       api_public_doctors,       name='api_public_doctors'),
 
     # Branches
     path('branches',                      api_branches,       name='api_branches'),

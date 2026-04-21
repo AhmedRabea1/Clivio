@@ -1,0 +1,80 @@
+{% extends "base.html" %}
+
+{% block title %}Assistants — Clivio{% endblock %}
+{% block page_title %}Assistants{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+  <div>
+    <h5 class="fw-bold mb-0" style="color:#0f172a">Assistants</h5>
+    <p class="text-muted small mb-0">Manage assistants and their permissions.</p>
+  </div>
+  <a href="{% url 'assistant_create' %}" class="btn btn-primary btn-sm px-3">
+    <i class="bi bi-plus-lg me-1"></i> Add Assistant
+  </a>
+</div>
+
+<div class="table-card">
+  <div class="table-responsive">
+    <table class="table table-hover align-middle mb-0">
+      <thead class="table-light">
+        <tr>
+          <th>Name</th>
+          <th>Email</th>
+          <th>Phone</th>
+          <th>Branch</th>
+          <th>Roles</th>
+          <th>Status</th>
+          <th class="text-end">Actions</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for assistant in assistants %}
+        <tr>
+          <td>
+            <div class="d-flex align-items-center gap-2">
+              <div style="width:34px;height:34px;border-radius:50%;background:#dcfce7;display:flex;align-items:center;justify-content:center;font-weight:700;color:#166534;font-size:0.85rem;">
+                {{ assistant.user.name|first|upper }}
+              </div>
+              <span class="fw-medium">{{ assistant.user.name }}</span>
+            </div>
+          </td>
+          <td class="text-muted small">{{ assistant.user.email }}</td>
+          <td class="text-muted small">{{ assistant.user.phone|default:"—" }}</td>
+          <td class="text-muted small">{{ assistant.branch.name|default:"—" }}</td>
+          <td>
+            {% for role in assistant.roles.all %}
+            <span class="badge bg-light text-secondary border me-1">{{ role.get_role_name_display }}</span>
+            {% empty %}
+            <span class="text-muted small">—</span>
+            {% endfor %}
+          </td>
+          <td>
+            {% if assistant.user.is_active %}
+            <span class="badge bg-success-subtle text-success">Active</span>
+            {% else %}
+            <span class="badge bg-danger-subtle text-danger">Inactive</span>
+            {% endif %}
+          </td>
+          <td class="text-end">
+            <a href="{% url 'assistant_edit' assistant.user.pk %}" class="btn btn-sm btn-outline-secondary me-1">
+              <i class="bi bi-pencil"></i>
+            </a>
+            <a href="{% url 'assistant_delete' assistant.user.pk %}" class="btn btn-sm btn-outline-danger">
+              <i class="bi bi-trash"></i>
+            </a>
+          </td>
+        </tr>
+        {% empty %}
+        <tr>
+          <td colspan="7" class="text-center py-5 text-muted">
+            <i class="bi bi-person-gear fs-2 d-block mb-2"></i>
+            No assistants yet. <a href="{% url 'assistant_create' %}">Add the first one.</a>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}

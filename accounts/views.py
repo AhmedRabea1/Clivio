@@ -5,8 +5,8 @@ from django.contrib.auth import login, logout
 from django.contrib.auth.decorators import login_required
 from django.shortcuts import render, redirect, get_object_or_404
 from django.contrib import messages
-from .forms import LoginForm, UserForm, ConfigurationForm, DoctorForm
-from .models import User, Configuration, Doctor
+from .forms import LoginForm, UserForm, ConfigurationForm, DoctorForm, AssistantForm
+from .models import User, Configuration, Doctor, Assistant, AssistantRole
 from branches.models import UserBranchAssignment
 
 
@@ -290,6 +290,105 @@ def doctor_delete(request, pk):
         messages.success(request, f'Dr. {name} deleted.')
         return redirect('doctor_list')
     return render(request, 'accounts/doctor_confirm_delete.html', {'doctor': doctor})
+
+
+@login_required
+def assistant_list(request):
+    assistants = Assistant.objects.select_related('user', 'branch').prefetch_related('roles').filter(
+        user__clinic=request.user.clinic
+    )
+    return render(request, 'accounts/assistants.html', {'assistants': assistants})
+
+
+@login_required
+def assistant_create(request):
+    from branches.models import Branch
+    branches = Branch.objects.filter(clinic=request.user.clinic, is_active=True)
+    roles = AssistantRole.objects.all()
+    form = AssistantForm(request.POST or None)
+
+    if request.method == 'POST' and form.is_valid():
+        email = form.cleaned_data['email'].lower()
+        if User.objects.filter(clinic=request.user.clinic, email__iexact=email).exists():
+            form.add_error('email', 'This email is already registered.')
+        else:
+            branch_id = form.cleaned_data.get('branch')
+            branch = Branch.objects.filter(pk=branch_id, clinic=request.user.clinic).first() if branch_id else None
+            user = User.objects.create(
+                email=email,
+                name=form.cleaned_data['name'],
+                phone=form.cleaned_data.get('phone', ''),
+                role=User.Role.ASSISTANT,
+                clinic=request.user.clinic,
+                is_active=form.cleaned_data.get('is_active', True),
+            )
+            assistant = Assistant.objects.create(user=user, branch=branch)
+            role_ids = request.POST.getlist('role_ids')
+            if role_ids:
+                assistant.roles.set(role_ids)
+            messages.success(request, f'{user.name} created successfully.')
+            return redirect('assistant_list')
+
+    return render(request, 'accounts/assistant_form.html', {
+        'form': form, 'title': 'Add Assistant',
+        'branches': branches, 'roles': roles,
+        'selected_role_ids': [],
+    })
+
+
+@login_required
+def assistant_edit(request, pk):
+    from branches.models import Branch
+    assistant = get_object_or_404(Assistant, user__pk=pk, user__clinic=request.user.clinic)
+    branches = Branch.objects.filter(clinic=request.user.clinic, is_active=True)
+    roles = AssistantRole.objects.all()
+    selected_role_ids = list(assistant.roles.values_list('id', flat=True))
+
+    form = AssistantForm(request.POST or None, initial={
+        'name': assistant.user.name,
+        'email': assistant.user.email,
+        'phone': assistant.user.phone,
+        'branch': assistant.branch_id,
+        'is_active': assistant.user.is_active,
+    })
+
+    if request.method == 'POST' and form.is_valid():
+        new_email = form.cleaned_data['email'].lower()
+        if User.objects.filter(clinic=request.user.clinic, email__iexact=new_email).exclude(pk=pk).exists():
+            form.add_error('email', 'This email is already registered.')
+        else:
+            branch_id = form.cleaned_data.get('branch')
+            assistant.branch = Branch.objects.filter(pk=branch_id, clinic=request.user.clinic).first() if branch_id else None
+            assistant.user.name = form.cleaned_data['name']
+            assistant.user.email = new_email
+            assistant.user.phone = form.cleaned_data.get('phone', '')
+            assistant.user.is_active = form.cleaned_data.get('is_active', True)
+            assistant.user.save()
+            assistant.save()
+            role_ids = request.POST.getlist('role_ids')
+            assistant.roles.set(role_ids)
+            messages.success(request, f'{assistant.user.name} updated successfully.')
+            return redirect('assistant_list')
+
+    return render(request, 'accounts/assistant_form.html', {
+        'form': form,
+        'title': f'Edit {assistant.user.name}',
+        'assistant': assistant,
+        'branches': branches,
+        'roles': roles,
+        'selected_role_ids': selected_role_ids,
+    })
+
+
+@login_required
+def assistant_delete(request, pk):
+    assistant = get_object_or_404(Assistant, user__pk=pk, user__clinic=request.user.clinic)
+    if request.method == 'POST':
+        name = assistant.user.name
+        assistant.user.delete()
+        messages.success(request, f'{name} deleted.')
+        return redirect('assistant_list')
+    return render(request, 'accounts/assistant_confirm_delete.html', {'assistant': assistant})
 
 
 @login_required
