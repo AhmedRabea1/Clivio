@@ -3,6 +3,7 @@ from datetime import datetime, timedelta
 from django.db.models import Q
 from rest_framework import status
 from rest_framework.decorators import api_view, permission_classes
+from rest_framework.pagination import PageNumberPagination
 from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
 
@@ -31,7 +32,10 @@ def api_patients(request):
                 Q(last_name__icontains=search) |
                 Q(mobile_number__icontains=search)
             )
-        return Response(PatientSerializer(qs, many=True).data)
+        paginator = PageNumberPagination()
+        paginator.page_size = 10
+        page = paginator.paginate_queryset(qs, request)
+        return paginator.get_paginated_response(PatientSerializer(page, many=True).data)
 
     serializer = PatientCreateSerializer(data=request.data)
     if serializer.is_valid():
