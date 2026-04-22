@@ -9,16 +9,58 @@ class PatientSerializer(serializers.ModelSerializer):
 
 
 class ReservationSerializer(serializers.ModelSerializer):
-    patient = PatientSerializer(read_only=True)
-    branch_name = serializers.CharField(source='branch.name', read_only=True)
-    doctor_name = serializers.CharField(source='doctor.user.name', read_only=True, default=None)
+    patient_name = serializers.SerializerMethodField()
+    branch_name  = serializers.CharField(source='branch.name', read_only=True)
+    doctor_name  = serializers.CharField(source='doctor.user.name', read_only=True, default=None)
 
     class Meta:
         model = Reservation
         fields = (
-            'id', 'patient', 'branch_name',
+            'id', 'patient_name', 'branch_name',
             'doctor_name', 'date_of_visit', 'slot', 'status', 'created_at',
         )
+
+    def get_patient_name(self, obj):
+        return obj.patient.full_name if obj.patient else None
+
+
+class ReservationUpdateSerializer(serializers.Serializer):
+    branch_id     = serializers.IntegerField(required=False)
+    doctor_id     = serializers.IntegerField(required=False, allow_null=True)
+    date_of_visit = serializers.DateField(required=False)
+    slot          = serializers.TimeField(required=False, allow_null=True)
+    status        = serializers.ChoiceField(choices=Reservation.Status.choices, required=False)
+
+    def validate_branch_id(self, value):
+        from branches.models import Branch
+        if not Branch.objects.filter(pk=value, is_active=True).exists():
+            raise serializers.ValidationError('Invalid or inactive branch.')
+        return value
+
+    def validate_doctor_id(self, value):
+        if value is None:
+            return value
+        from accounts.models import Doctor
+        if not Doctor.objects.filter(user__pk=value, user__is_active=True).exists():
+            raise serializers.ValidationError('Invalid or inactive doctor.')
+        return value
+
+    def save(self, instance):
+        from branches.models import Branch
+        from accounts.models import Doctor
+        data = self.validated_data
+        if 'branch_id' in data:
+            instance.branch = Branch.objects.get(pk=data['branch_id'])
+        if 'doctor_id' in data:
+            instance.doctor = Doctor.objects.filter(user__pk=data['doctor_id']).first() if data['doctor_id'] else None
+        if 'date_of_visit' in data:
+            instance.date_of_visit = data['date_of_visit']
+        if 'slot' in data:
+            instance.slot = data['slot']
+        if 'status' in data:
+            instance.status = data['status']
+        instance.save()
+        return instance
 
 
 class PatientCreateSerializer(serializers.ModelSerializer):

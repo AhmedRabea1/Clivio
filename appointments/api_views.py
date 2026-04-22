@@ -9,7 +9,7 @@ from rest_framework.response import Response
 
 from .models import Reservation, Patient
 from .serializers import (
-    PublicReservationCreateSerializer, ReservationSerializer,
+    PublicReservationCreateSerializer, ReservationSerializer, ReservationUpdateSerializer,
     PatientSerializer, PatientCreateSerializer, ReservationCreateSerializer,
 )
 
@@ -79,14 +79,69 @@ def api_patient_detail(request, pk):
 
 # ─── Reservation endpoints ────────────────────────────────────────────────────
 
-@api_view(['POST'])
+@api_view(['GET', 'POST'])
 @permission_classes([IsAuthenticated])
 def api_reservations(request):
-    """POST /api/reservations — create reservation by patient id."""
+    """
+    GET  /api/reservations  — list all reservations
+    POST /api/reservations  — create reservation by patient id
+    """
+    if request.method == 'GET':
+        qs = Reservation.objects.select_related(
+            'patient', 'branch', 'doctor__user'
+        ).order_by('-created_at')
+
+        patient_name  = request.query_params.get('patient_name', '').strip()
+        branch_name   = request.query_params.get('branch_name', '').strip()
+        doctor_name   = request.query_params.get('doctor_name', '').strip()
+        date_of_visit = request.query_params.get('date_of_visit', '').strip()
+        res_status    = request.query_params.get('status', '').strip()
+
+        if patient_name:
+            qs = qs.filter(
+                Q(patient__first_name__icontains=patient_name) |
+                Q(patient__last_name__icontains=patient_name)
+            )
+        if branch_name:
+            qs = qs.filter(branch__name__icontains=branch_name)
+        if doctor_name:
+            qs = qs.filter(doctor__user__name__icontains=doctor_name)
+        if date_of_visit:
+            qs = qs.filter(date_of_visit=date_of_visit)
+        if res_status:
+            qs = qs.filter(status=res_status)
+
+        paginator = PageNumberPagination()
+        paginator.page_size = 10
+        page = paginator.paginate_queryset(qs, request)
+        return paginator.get_paginated_response(ReservationSerializer(page, many=True).data)
+
     serializer = ReservationCreateSerializer(data=request.data)
     if serializer.is_valid():
         reservation = serializer.save()
         return Response(ReservationSerializer(reservation).data, status=status.HTTP_201_CREATED)
+    return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+
+@api_view(['GET', 'PATCH'])
+@permission_classes([IsAuthenticated])
+def api_reservation_detail(request, pk):
+    """
+    GET   /api/reservations/:id — get reservation by id
+    PATCH /api/reservations/:id — update reservation fields or status
+    """
+    try:
+        reservation = Reservation.objects.select_related('patient', 'branch', 'doctor__user').get(pk=pk)
+    except Reservation.DoesNotExist:
+        return Response({'error': 'Reservation not found.'}, status=status.HTTP_404_NOT_FOUND)
+
+    if request.method == 'GET':
+        return Response(ReservationSerializer(reservation).data)
+
+    serializer = ReservationUpdateSerializer(data=request.data)
+    if serializer.is_valid():
+        reservation = serializer.save(reservation)
+        return Response(ReservationSerializer(reservation).data)
     return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
 
