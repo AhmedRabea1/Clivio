@@ -1,13 +1,86 @@
 from datetime import datetime, timedelta
 
+from django.db.models import Q
 from rest_framework import status
 from rest_framework.decorators import api_view, permission_classes
-from rest_framework.permissions import AllowAny
+from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
 
-from .models import Reservation
-from .serializers import PublicReservationCreateSerializer, ReservationSerializer
+from .models import Reservation, Patient
+from .serializers import (
+    PublicReservationCreateSerializer, ReservationSerializer,
+    PatientSerializer, PatientCreateSerializer, ReservationCreateSerializer,
+)
 
+
+# ─── Patient endpoints ─────────────────────────────────────────────────────────
+
+@api_view(['GET', 'POST'])
+@permission_classes([IsAuthenticated])
+def api_patients(request):
+    """
+    GET  /api/patients?search=name_or_mobile  — list patients
+    POST /api/patients                         — create patient
+    """
+    if request.method == 'GET':
+        qs = Patient.objects.all().order_by('-created_at')
+        search = request.query_params.get('search', '').strip()
+        if search:
+            qs = qs.filter(
+                Q(first_name__icontains=search) |
+                Q(last_name__icontains=search) |
+                Q(mobile_number__icontains=search)
+            )
+        return Response(PatientSerializer(qs, many=True).data)
+
+    serializer = PatientCreateSerializer(data=request.data)
+    if serializer.is_valid():
+        patient = serializer.save()
+        return Response(PatientSerializer(patient).data, status=status.HTTP_201_CREATED)
+    return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+
+@api_view(['GET', 'PATCH', 'DELETE'])
+@permission_classes([IsAuthenticated])
+def api_patient_detail(request, pk):
+    """
+    GET    /api/patients/:id
+    PATCH  /api/patients/:id
+    DELETE /api/patients/:id
+    """
+    try:
+        patient = Patient.objects.get(pk=pk)
+    except Patient.DoesNotExist:
+        return Response({'error': 'Patient not found.'}, status=status.HTTP_404_NOT_FOUND)
+
+    if request.method == 'GET':
+        return Response(PatientSerializer(patient).data)
+
+    if request.method == 'DELETE':
+        patient.delete()
+        return Response(status=status.HTTP_204_NO_CONTENT)
+
+    serializer = PatientCreateSerializer(patient, data=request.data, partial=True)
+    if serializer.is_valid():
+        serializer.save()
+        return Response(PatientSerializer(patient).data)
+    return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+
+# ─── Reservation endpoints ────────────────────────────────────────────────────
+
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+def api_reservations(request):
+    """POST /api/reservations — create reservation by patient id."""
+    serializer = ReservationCreateSerializer(data=request.data)
+    if serializer.is_valid():
+        reservation = serializer.save()
+        return Response(ReservationSerializer(reservation).data, status=status.HTTP_201_CREATED)
+    return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+
+# ─── Public slots endpoint ─────────────────────────────────────────────────────
 
 @api_view(['GET'])
 @permission_classes([AllowAny])

@@ -21,6 +21,62 @@ class ReservationSerializer(serializers.ModelSerializer):
         )
 
 
+class PatientCreateSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Patient
+        fields = ('first_name', 'last_name', 'mobile_number', 'date_of_birth', 'medical_notes')
+        extra_kwargs = {
+            'medical_notes': {'required': False, 'allow_blank': True},
+        }
+
+    def validate_mobile_number(self, value):
+        qs = Patient.objects.filter(mobile_number=value)
+        if self.instance:
+            qs = qs.exclude(pk=self.instance.pk)
+        if qs.exists():
+            raise serializers.ValidationError('This mobile number is already registered.')
+        return value
+
+
+class ReservationCreateSerializer(serializers.Serializer):
+    patient_id    = serializers.IntegerField()
+    branch_id     = serializers.IntegerField()
+    doctor_id     = serializers.IntegerField(required=False, allow_null=True, default=None)
+    date_of_visit = serializers.DateField()
+    slot          = serializers.TimeField(required=False, allow_null=True, default=None)
+
+    def validate_patient_id(self, value):
+        if not Patient.objects.filter(pk=value).exists():
+            raise serializers.ValidationError('Patient not found.')
+        return value
+
+    def validate_branch_id(self, value):
+        from branches.models import Branch
+        if not Branch.objects.filter(pk=value, is_active=True).exists():
+            raise serializers.ValidationError('Invalid or inactive branch.')
+        return value
+
+    def validate_doctor_id(self, value):
+        if value is None:
+            return value
+        from accounts.models import Doctor
+        if not Doctor.objects.filter(user__pk=value, user__is_active=True).exists():
+            raise serializers.ValidationError('Invalid or inactive doctor.')
+        return value
+
+    def save(self):
+        from branches.models import Branch
+        from accounts.models import Doctor
+        data = self.validated_data
+        return Reservation.objects.create(
+            patient_id=data['patient_id'],
+            branch=Branch.objects.get(pk=data['branch_id']),
+            doctor=Doctor.objects.filter(user__pk=data.get('doctor_id')).first() if data.get('doctor_id') else None,
+            date_of_visit=data['date_of_visit'],
+            slot=data.get('slot'),
+        )
+
+
 class PublicReservationCreateSerializer(serializers.Serializer):
     # Patient fields — required only when mobile is new
     mobile_number = serializers.CharField(max_length=20)
