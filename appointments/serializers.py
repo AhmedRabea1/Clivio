@@ -34,7 +34,7 @@ class PatientCreateSerializer(serializers.ModelSerializer):
         if self.instance:
             qs = qs.exclude(pk=self.instance.pk)
         if qs.exists():
-            raise serializers.ValidationError('This mobile number is already registered.')
+            raise serializers.ValidationError('A patient with this mobile number already exists.')
         return value
 
 

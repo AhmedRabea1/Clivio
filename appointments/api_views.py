@@ -41,7 +41,13 @@ def api_patients(request):
     if serializer.is_valid():
         patient = serializer.save()
         return Response(PatientSerializer(patient).data, status=status.HTTP_201_CREATED)
-    return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+    errors = serializer.errors
+    if 'mobile_number' in errors:
+        return Response(
+            {'message': errors['mobile_number'][0]},
+            status=status.HTTP_400_BAD_REQUEST,
+        )
+    return Response(errors, status=status.HTTP_400_BAD_REQUEST)
 
 
 @api_view(['GET', 'PATCH', 'DELETE'])
