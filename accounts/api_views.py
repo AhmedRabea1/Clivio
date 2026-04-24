@@ -645,12 +645,12 @@ def api_service_detail(request, pk):
 def api_products(request):
     if request.method == 'GET':
         qs = Product.objects.select_related('service').all()
-        name    = request.query_params.get('name', '').strip()
-        service = request.query_params.get('service', '').strip()
+        name       = request.query_params.get('name', '').strip()
+        service_id = request.query_params.get('service_id', '').strip()
         if name:
             qs = qs.filter(name__icontains=name)
-        if service:
-            qs = qs.filter(service__name__icontains=service)
+        if service_id:
+            qs = qs.filter(service_id=service_id)
         paginator = PageNumberPagination()
         paginator.page_size = 10
         page = paginator.paginate_queryset(qs, request)
@@ -691,12 +691,12 @@ def api_product_detail(request, pk):
 def api_machines(request):
     if request.method == 'GET':
         qs = Machine.objects.select_related('service').all()
-        name    = request.query_params.get('name', '').strip()
-        service = request.query_params.get('service', '').strip()
+        name       = request.query_params.get('name', '').strip()
+        service_id = request.query_params.get('service_id', '').strip()
         if name:
             qs = qs.filter(name__icontains=name)
-        if service:
-            qs = qs.filter(service__name__icontains=service)
+        if service_id:
+            qs = qs.filter(service_id=service_id)
         paginator = PageNumberPagination()
         paginator.page_size = 10
         page = paginator.paginate_queryset(qs, request)
