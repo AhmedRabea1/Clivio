@@ -21,7 +21,7 @@ from branches.api_views import (
     api_public_branches,
 )
 from appointments.api_views import (
-    api_public_book_reservation, api_public_slots,
+    api_public_book_reservation, api_public_slots, api_public_availability,
     api_patients, api_patient_detail, api_reservations, api_reservation_detail,
 )
 
@@ -59,6 +59,7 @@ api_urlpatterns = [
     path('public/doctors',        api_public_doctors,           name='api_public_doctors'),
     path('public/reservations',   api_public_book_reservation,  name='api_public_book_reservation'),
     path('public/slots',          api_public_slots,             name='api_public_slots'),
+    path('public/availability',   api_public_availability,      name='api_public_availability'),
 
     # Patients
     path('patients',              api_patients,                 name='api_patients'),

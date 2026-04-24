@@ -145,6 +145,45 @@ def api_reservation_detail(request, pk):
     return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
 
+# ─── Slot generation helper ───────────────────────────────────────────────────
+
+PYTHON_TO_MODEL_DAY = {5: 0, 6: 1, 0: 2, 1: 3, 2: 4, 3: 5, 4: 6}
+
+
+def _get_slots_for_doctor(doctor_id, branch_id, visit_date, interval):
+    """Returns list of {time, available} dicts for a doctor on a given date."""
+    from branches.models import DoctorSchedule
+
+    model_day = PYTHON_TO_MODEL_DAY[visit_date.weekday()]
+    schedules = DoctorSchedule.objects.filter(
+        user__pk=doctor_id, branch_id=branch_id, day=model_day,
+    )
+    if not schedules.exists():
+        return []
+
+    all_slots = set()
+    for schedule in schedules:
+        current = datetime.combine(visit_date, schedule.from_time)
+        end     = datetime.combine(visit_date, schedule.to_time)
+        while current < end:
+            all_slots.add(current.time())
+            current += timedelta(minutes=interval)
+
+    booked = set(
+        Reservation.objects.filter(
+            doctor__user__pk=doctor_id,
+            branch_id=branch_id,
+            date_of_visit=visit_date,
+            slot__isnull=False,
+        ).values_list('slot', flat=True)
+    )
+
+    return [
+        {'time': t.strftime('%H:%M'), 'available': t not in booked}
+        for t in sorted(all_slots)
+    ]
+
+
 # ─── Public slots endpoint ─────────────────────────────────────────────────────
 
 @api_view(['GET'])
@@ -242,3 +281,100 @@ def api_public_book_reservation(request):
         reservation = serializer.save()
         return Response(ReservationSerializer(reservation).data, status=status.HTTP_201_CREATED)
     return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def api_public_availability(request):
+    """
+    GET /api/public/availability
+        ?date=2026-04-25          → all branches with their doctors and slots
+        ?date=&branch_id=1        → doctors in that branch with slots
+        ?date=&branch_id=1&doctor_id=8 → slots for that doctor on that branch
+    date defaults to today.
+    """
+    from datetime import date as date_cls
+    from branches.models import Branch, UserBranchAssignment
+    from accounts.models import Doctor, Configuration
+
+    date_str  = request.query_params.get('date', '').strip()
+    branch_id = request.query_params.get('branch_id', '').strip()
+    doctor_id = request.query_params.get('doctor_id', '').strip()
+
+    if date_str:
+        try:
+            visit_date = datetime.strptime(date_str, '%Y-%m-%d').date()
+        except ValueError:
+            return Response({'error': 'Invalid date format. Use YYYY-MM-DD.'}, status=status.HTTP_400_BAD_REQUEST)
+    else:
+        visit_date = date_cls.today()
+
+    config   = Configuration.objects.first()
+    interval = config.slot_interval if config else 30
+    date_out = visit_date.strftime('%Y-%m-%d')
+
+    # ── Case 3: date + branch + doctor → just slots ───────────────────────────
+    if branch_id and doctor_id:
+        slots = _get_slots_for_doctor(doctor_id, branch_id, visit_date, interval)
+        return Response({
+            'date':         date_out,
+            'slot_interval': interval,
+            'slots':        slots,
+        })
+
+    # ── Case 2: date + branch → doctors with slots ────────────────────────────
+    if branch_id:
+        try:
+            branch = Branch.objects.get(pk=branch_id, is_active=True)
+        except Branch.DoesNotExist:
+            return Response({'error': 'Branch not found.'}, status=status.HTTP_404_NOT_FOUND)
+
+        doctor_ids = UserBranchAssignment.objects.filter(
+            branch=branch, user__is_active=True, user__role='doctor'
+        ).values_list('user_id', flat=True)
+
+        doctors_data = []
+        for doc in Doctor.objects.filter(user_id__in=doctor_ids).select_related('user'):
+            slots = _get_slots_for_doctor(doc.user.pk, branch_id, visit_date, interval)
+            if slots:
+                doctors_data.append({
+                    'id':       doc.user.pk,
+                    'name':     doc.user.name,
+                    'specialty': doc.specialty,
+                    'slots':    slots,
+                })
+
+        return Response({
+            'date':   date_out,
+            'branch': {'id': branch.pk, 'name': branch.name},
+            'doctors': doctors_data,
+        })
+
+    # ── Case 1: date only → all branches with doctors and slots ──────────────
+    branches_data = []
+    for branch in Branch.objects.filter(is_active=True):
+        doctor_ids = UserBranchAssignment.objects.filter(
+            branch=branch, user__is_active=True, user__role='doctor'
+        ).values_list('user_id', flat=True)
+
+        doctors_data = []
+        for doc in Doctor.objects.filter(user_id__in=doctor_ids).select_related('user'):
+            slots = _get_slots_for_doctor(doc.user.pk, branch.pk, visit_date, interval)
+            if slots:
+                doctors_data.append({
+                    'id':        doc.user.pk,
+                    'name':      doc.user.name,
+                    'specialty': doc.specialty,
+                    'slots':     slots,
+                })
+
+        branches_data.append({
+            'id':      branch.pk,
+            'name':    branch.name,
+            'doctors': doctors_data,
+        })
+
+    return Response({
+        'date':     date_out,
+        'branches': branches_data,
+    })
