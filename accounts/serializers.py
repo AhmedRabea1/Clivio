@@ -1,5 +1,5 @@
 from rest_framework import serializers
-from .models import User, Clinic, Configuration, Doctor, AssistantRole, Assistant
+from .models import User, Clinic, Configuration, Doctor, AssistantRole, Assistant, Service, Product
 
 
 class ClinicSerializer(serializers.ModelSerializer):
@@ -445,3 +445,35 @@ class DoctorCreateSerializer(serializers.Serializer):
         if branch_schedules is not None:
             self._save_schedules(user, branch_schedules, request)
         return instance
+
+
+class ServiceSerializer(serializers.ModelSerializer):
+    class Meta:
+        model  = Service
+        fields = ('id', 'name')
+
+    def validate_name(self, value):
+        qs = Service.objects.filter(name__iexact=value)
+        if self.instance:
+            qs = qs.exclude(pk=self.instance.pk)
+        if qs.exists():
+            raise serializers.ValidationError('A service with this name already exists.')
+        return value
+
+
+class ProductSerializer(serializers.ModelSerializer):
+    service_name = serializers.CharField(source='service.name', read_only=True)
+    type_display = serializers.CharField(source='get_type_display', read_only=True)
+
+    class Meta:
+        model  = Product
+        fields = ('id', 'service', 'service_name', 'name', 'type', 'type_display', 'quantity', 'volume', 'price')
+
+    def validate(self, attrs):
+        product_type = attrs.get('type', getattr(self.instance, 'type', None))
+        volume = attrs.get('volume', getattr(self.instance, 'volume', None))
+        if product_type == Product.Type.SYRINGE and volume is not None:
+            raise serializers.ValidationError({'volume': 'Volume must be null for syringe type.'})
+        if product_type == Product.Type.VEIL and volume is None:
+            raise serializers.ValidationError({'volume': 'Volume (ml) is required for veil type.'})
+        return attrs

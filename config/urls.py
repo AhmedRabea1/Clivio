@@ -15,6 +15,8 @@ from accounts.api_views import (
     api_doctors, api_doctor_detail, api_doctor_status,
     api_assistants, api_assistant_detail, api_assistant_status,
     api_assistant_roles,
+    api_services, api_service_detail,
+    api_products, api_product_detail,
 )
 from branches.api_views import (
     api_branches, api_branch_detail, api_branch_status, api_branch_users,
@@ -51,6 +53,14 @@ api_urlpatterns = [
 
     # Assistant roles
     path('assistant-roles',              api_assistant_roles,   name='api_assistant_roles'),
+
+    # Services
+    path('services',             api_services,        name='api_services'),
+    path('services/<int:pk>',    api_service_detail,  name='api_service_detail'),
+
+    # Products
+    path('products',             api_products,        name='api_products'),
+    path('products/<int:pk>',    api_product_detail,  name='api_product_detail'),
 
     # Configuration
     path('configuration',        api_configuration,        name='api_configuration'),

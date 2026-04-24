@@ -12,12 +12,13 @@ from rest_framework.response import Response
 from rest_framework_simplejwt.tokens import RefreshToken
 from rest_framework_simplejwt.exceptions import TokenError
 
-from .models import User, Configuration, Doctor, AssistantRole, Assistant
+from .models import User, Configuration, Doctor, AssistantRole, Assistant, Service, Product
 from .serializers import (
     LoginSerializer, UserSerializer,
     UserCreateSerializer, UserUpdateBranchesSerializer,
     ConfigurationSerializer, DoctorSerializer, DoctorCreateSerializer,
     AssistantRoleSerializer, AssistantSerializer, AssistantCreateSerializer,
+    ServiceSerializer, ProductSerializer,
 )
 from branches.models import Branch, UserBranchAssignment
 
@@ -589,4 +590,78 @@ def api_configuration(request):
     if serializer.is_valid():
         serializer.save()
         return Response(serializer.data)
+    return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+
+# ─── Service endpoints ────────────────────────────────────────────────────────
+
+@api_view(["GET", "POST"])
+@permission_classes([IsAuthenticated])
+def api_services(request):
+    if request.method == "GET":
+        return Response(ServiceSerializer(Service.objects.all(), many=True).data)
+    serializer = ServiceSerializer(data=request.data)
+    if serializer.is_valid():
+        service = serializer.save()
+        return Response(ServiceSerializer(service).data, status=status.HTTP_201_CREATED)
+    return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+
+@api_view(["GET", "PATCH", "DELETE"])
+@permission_classes([IsAuthenticated])
+def api_service_detail(request, pk):
+    try:
+        service = Service.objects.get(pk=pk)
+    except Service.DoesNotExist:
+        return Response({"error": "Service not found."}, status=status.HTTP_404_NOT_FOUND)
+
+    if request.method == "GET":
+        return Response(ServiceSerializer(service).data)
+
+    if request.method == "DELETE":
+        service.delete()
+        return Response(status=status.HTTP_204_NO_CONTENT)
+
+    serializer = ServiceSerializer(service, data=request.data, partial=True)
+    if serializer.is_valid():
+        serializer.save()
+        return Response(ServiceSerializer(service).data)
+    return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+
+
+# ─── Product endpoints ────────────────────────────────────────────────────────
+
+@api_view(['GET', 'POST'])
+@permission_classes([IsAuthenticated])
+def api_products(request):
+    if request.method == 'GET':
+        qs = Product.objects.select_related('service').all()
+        return Response(ProductSerializer(qs, many=True).data)
+    serializer = ProductSerializer(data=request.data)
+    if serializer.is_valid():
+        product = serializer.save()
+        return Response(ProductSerializer(product).data, status=status.HTTP_201_CREATED)
+    return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+
+@api_view(['GET', 'PATCH', 'DELETE'])
+@permission_classes([IsAuthenticated])
+def api_product_detail(request, pk):
+    try:
+        product = Product.objects.select_related('service').get(pk=pk)
+    except Product.DoesNotExist:
+        return Response({'error': 'Product not found.'}, status=status.HTTP_404_NOT_FOUND)
+
+    if request.method == 'GET':
+        return Response(ProductSerializer(product).data)
+
+    if request.method == 'DELETE':
+        product.delete()
+        return Response(status=status.HTTP_204_NO_CONTENT)
+
+    serializer = ProductSerializer(product, data=request.data, partial=True)
+    if serializer.is_valid():
+        serializer.save()
+        return Response(ProductSerializer(product).data)
     return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
