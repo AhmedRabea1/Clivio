@@ -600,9 +600,13 @@ def api_configuration(request):
 @permission_classes([IsAuthenticated])
 def api_services(request):
     if request.method == "GET":
+        qs = Service.objects.all()
+        name = request.query_params.get('name', '').strip()
+        if name:
+            qs = qs.filter(name__icontains=name)
         paginator = PageNumberPagination()
         paginator.page_size = 10
-        page = paginator.paginate_queryset(Service.objects.all(), request)
+        page = paginator.paginate_queryset(qs, request)
         return paginator.get_paginated_response(ServiceSerializer(page, many=True).data)
     serializer = ServiceSerializer(data=request.data)
     if serializer.is_valid():
@@ -641,6 +645,12 @@ def api_service_detail(request, pk):
 def api_products(request):
     if request.method == 'GET':
         qs = Product.objects.select_related('service').all()
+        name    = request.query_params.get('name', '').strip()
+        service = request.query_params.get('service', '').strip()
+        if name:
+            qs = qs.filter(name__icontains=name)
+        if service:
+            qs = qs.filter(service__name__icontains=service)
         paginator = PageNumberPagination()
         paginator.page_size = 10
         page = paginator.paginate_queryset(qs, request)
@@ -681,6 +691,12 @@ def api_product_detail(request, pk):
 def api_machines(request):
     if request.method == 'GET':
         qs = Machine.objects.select_related('service').all()
+        name    = request.query_params.get('name', '').strip()
+        service = request.query_params.get('service', '').strip()
+        if name:
+            qs = qs.filter(name__icontains=name)
+        if service:
+            qs = qs.filter(service__name__icontains=service)
         paginator = PageNumberPagination()
         paginator.page_size = 10
         page = paginator.paginate_queryset(qs, request)
