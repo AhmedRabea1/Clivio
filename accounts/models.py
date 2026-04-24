@@ -182,8 +182,13 @@ class User(AbstractBaseUser, PermissionsMixin):
 
 
 class Service(models.Model):
+    class Category(models.TextChoices):
+        INJECTABLE = 'injectable', 'Injectable'
+        MACHINE    = 'machine',    'Machine'
+
     name        = models.CharField(max_length=255, unique=True)
     description = models.TextField(blank=True, default='')
+    category    = models.CharField(max_length=20, choices=Category.choices, default=Category.INJECTABLE)
 
     class Meta:
         ordering = ['name']

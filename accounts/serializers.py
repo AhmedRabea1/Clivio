@@ -448,9 +448,11 @@ class DoctorCreateSerializer(serializers.Serializer):
 
 
 class ServiceSerializer(serializers.ModelSerializer):
+    category_display = serializers.CharField(source='get_category_display', read_only=True)
+
     class Meta:
         model  = Service
-        fields = ('id', 'name', 'description')
+        fields = ('id', 'name', 'description', 'category', 'category_display')
 
     def validate_name(self, value):
         qs = Service.objects.filter(name__iexact=value)
