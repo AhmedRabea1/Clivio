@@ -208,7 +208,7 @@ def doctor_create(request):
             if error:
                 messages.error(request, error)
             else:
-                user = User.objects.create(
+                user = User.objects.create_user(
                     email=email,
                     name=form.cleaned_data['name'],
                     phone=form.cleaned_data.get('phone', ''),
