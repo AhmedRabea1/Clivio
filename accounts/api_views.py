@@ -6,6 +6,7 @@ from django.conf import settings
 
 from rest_framework import status
 from rest_framework.decorators import api_view, permission_classes
+from rest_framework.pagination import PageNumberPagination
 from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
 
@@ -599,7 +600,10 @@ def api_configuration(request):
 @permission_classes([IsAuthenticated])
 def api_services(request):
     if request.method == "GET":
-        return Response(ServiceSerializer(Service.objects.all(), many=True).data)
+        paginator = PageNumberPagination()
+        paginator.page_size = 10
+        page = paginator.paginate_queryset(Service.objects.all(), request)
+        return paginator.get_paginated_response(ServiceSerializer(page, many=True).data)
     serializer = ServiceSerializer(data=request.data)
     if serializer.is_valid():
         service = serializer.save()
@@ -637,7 +641,10 @@ def api_service_detail(request, pk):
 def api_products(request):
     if request.method == 'GET':
         qs = Product.objects.select_related('service').all()
-        return Response(ProductSerializer(qs, many=True).data)
+        paginator = PageNumberPagination()
+        paginator.page_size = 10
+        page = paginator.paginate_queryset(qs, request)
+        return paginator.get_paginated_response(ProductSerializer(page, many=True).data)
     serializer = ProductSerializer(data=request.data)
     if serializer.is_valid():
         product = serializer.save()
