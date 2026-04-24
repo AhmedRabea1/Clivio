@@ -192,6 +192,26 @@ class Service(models.Model):
         return self.name
 
 
+class Machine(models.Model):
+    class Type(models.TextChoices):
+        PULSES      = 'pulses',      'Pulses'
+        DURATION    = 'duration',    'Duration'
+        INJECTABLES = 'injectables', 'Injectables'
+        SESSIONS    = 'sessions',    'Sessions'
+
+    service     = models.ForeignKey(Service, on_delete=models.CASCADE, related_name='machines')
+    name        = models.CharField(max_length=255, unique=True)
+    type        = models.CharField(max_length=20, choices=Type.choices)
+    price       = models.DecimalField(max_digits=10, decimal_places=2)
+    description = models.TextField(blank=True, default='')
+
+    class Meta:
+        ordering = ['name']
+
+    def __str__(self):
+        return self.name
+
+
 class Product(models.Model):
     class Type(models.TextChoices):
         VEIL     = 'veil',     'Veil'

@@ -1,5 +1,5 @@
 from rest_framework import serializers
-from .models import User, Clinic, Configuration, Doctor, AssistantRole, Assistant, Service, Product
+from .models import User, Clinic, Configuration, Doctor, AssistantRole, Assistant, Service, Product, Machine
 
 
 class ClinicSerializer(serializers.ModelSerializer):
@@ -477,3 +477,21 @@ class ProductSerializer(serializers.ModelSerializer):
         if product_type == Product.Type.VEIL and volume is None:
             raise serializers.ValidationError({'volume': 'Volume (ml) is required for veil type.'})
         return attrs
+
+
+class MachineSerializer(serializers.ModelSerializer):
+    service_name = serializers.CharField(source='service.name', read_only=True)
+    type_display = serializers.CharField(source='get_type_display', read_only=True)
+
+    class Meta:
+        model  = Machine
+        fields = ('id', 'service', 'service_name', 'name', 'type', 'type_display', 'price', 'description')
+        extra_kwargs = {'description': {'required': False}}
+
+    def validate_name(self, value):
+        qs = Machine.objects.filter(name__iexact=value)
+        if self.instance:
+            qs = qs.exclude(pk=self.instance.pk)
+        if qs.exists():
+            raise serializers.ValidationError('A machine with this name already exists.')
+        return value

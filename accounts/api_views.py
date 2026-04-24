@@ -13,13 +13,13 @@ from rest_framework.response import Response
 from rest_framework_simplejwt.tokens import RefreshToken
 from rest_framework_simplejwt.exceptions import TokenError
 
-from .models import User, Configuration, Doctor, AssistantRole, Assistant, Service, Product
+from .models import User, Configuration, Doctor, AssistantRole, Assistant, Service, Product, Machine
 from .serializers import (
     LoginSerializer, UserSerializer,
     UserCreateSerializer, UserUpdateBranchesSerializer,
     ConfigurationSerializer, DoctorSerializer, DoctorCreateSerializer,
     AssistantRoleSerializer, AssistantSerializer, AssistantCreateSerializer,
-    ServiceSerializer, ProductSerializer,
+    ServiceSerializer, ProductSerializer, MachineSerializer,
 )
 from branches.models import Branch, UserBranchAssignment
 
@@ -671,4 +671,44 @@ def api_product_detail(request, pk):
     if serializer.is_valid():
         serializer.save()
         return Response(ProductSerializer(product).data)
+    return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+
+# ─── Machine endpoints ────────────────────────────────────────────────────────
+
+@api_view(['GET', 'POST'])
+@permission_classes([IsAuthenticated])
+def api_machines(request):
+    if request.method == 'GET':
+        qs = Machine.objects.select_related('service').all()
+        paginator = PageNumberPagination()
+        paginator.page_size = 10
+        page = paginator.paginate_queryset(qs, request)
+        return paginator.get_paginated_response(MachineSerializer(page, many=True).data)
+    serializer = MachineSerializer(data=request.data)
+    if serializer.is_valid():
+        machine = serializer.save()
+        return Response(MachineSerializer(machine).data, status=status.HTTP_201_CREATED)
+    return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+
+@api_view(['GET', 'PATCH', 'DELETE'])
+@permission_classes([IsAuthenticated])
+def api_machine_detail(request, pk):
+    try:
+        machine = Machine.objects.select_related('service').get(pk=pk)
+    except Machine.DoesNotExist:
+        return Response({'error': 'Machine not found.'}, status=status.HTTP_404_NOT_FOUND)
+
+    if request.method == 'GET':
+        return Response(MachineSerializer(machine).data)
+
+    if request.method == 'DELETE':
+        machine.delete()
+        return Response(status=status.HTTP_204_NO_CONTENT)
+
+    serializer = MachineSerializer(machine, data=request.data, partial=True)
+    if serializer.is_valid():
+        serializer.save()
+        return Response(MachineSerializer(machine).data)
     return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
