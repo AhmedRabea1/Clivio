@@ -182,7 +182,8 @@ class User(AbstractBaseUser, PermissionsMixin):
 
 
 class Service(models.Model):
-    name = models.CharField(max_length=255, unique=True)
+    name        = models.CharField(max_length=255, unique=True)
+    description = models.TextField(blank=True, default='')
 
     class Meta:
         ordering = ['name']

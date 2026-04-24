@@ -450,7 +450,7 @@ class DoctorCreateSerializer(serializers.Serializer):
 class ServiceSerializer(serializers.ModelSerializer):
     class Meta:
         model  = Service
-        fields = ('id', 'name')
+        fields = ('id', 'name', 'description')
 
     def validate_name(self, value):
         qs = Service.objects.filter(name__iexact=value)
