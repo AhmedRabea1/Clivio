@@ -112,17 +112,26 @@ def api_login(request):
     _clear_rate_limit(ip)
     tokens = _token_pair_for_user(user)
 
+    user_data = {
+        'id': user.id,
+        'name': user.name,
+        'email': user.email,
+        'role': user.role,
+        'clinic_id': user.clinic_id,
+        'clinic_name': user.clinic.name if user.clinic else None,
+    }
+
+    if user.role == User.Role.ASSISTANT:
+        try:
+            roles = list(user.assistant_profile.roles.values('id', 'role_name'))
+            user_data['roles'] = roles
+        except Exception:
+            user_data['roles'] = []
+
     return Response({
         'access': tokens['access'],
         'refresh': tokens['refresh'],
-        'user': {
-            'id': user.id,
-            'name': user.name,
-            'email': user.email,
-            'role': user.role,
-            'clinic_id': user.clinic_id,
-            'clinic_name': user.clinic.name if user.clinic else None,
-        },
+        'user': user_data,
     }, status=status.HTTP_200_OK)
 
 
