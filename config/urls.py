@@ -8,7 +8,7 @@ from django.shortcuts import redirect
 # API imports
 from accounts.api_views import (
     api_login, api_refresh, api_logout,
-    api_forgot_password, api_reset_password,
+    api_forgot_password, api_reset_password, api_change_password,
     api_users, api_user_detail, api_user_status, api_user_branches,
     api_configuration, api_public_configuration,
     api_public_doctors,
@@ -33,8 +33,9 @@ api_urlpatterns = [
     path('auth/login',           api_login,           name='api_login'),
     path('auth/refresh',         api_refresh,         name='api_refresh'),
     path('auth/logout',          api_logout,          name='api_logout'),
-    path('auth/forgot-password', api_forgot_password, name='api_forgot_password'),
-    path('auth/reset-password',  api_reset_password,  name='api_reset_password'),
+    path('auth/forgot-password',  api_forgot_password,  name='api_forgot_password'),
+    path('auth/reset-password',   api_reset_password,   name='api_reset_password'),
+    path('auth/change-password',  api_change_password,  name='api_change_password'),
 
     # Users
     path('users',                    api_users,          name='api_users'),

@@ -73,6 +73,34 @@ def _require_super_admin(request):
 # ─── Auth endpoints ────────────────────────────────────────────────────────────
 
 @api_view(['POST'])
+@permission_classes([IsAuthenticated])
+def api_change_password(request):
+    """
+    POST /api/auth/change-password
+    Body: { password, confirm_password }
+    Sets the new password and clears must_change_password flag.
+    """
+    password         = request.data.get('password', '')
+    confirm_password = request.data.get('confirm_password', '')
+
+    if not password or not confirm_password:
+        return Response(
+            {'error': 'password and confirm_password are required.'},
+            status=status.HTTP_400_BAD_REQUEST,
+        )
+    if password != confirm_password:
+        return Response({'error': 'Passwords do not match.'}, status=status.HTTP_400_BAD_REQUEST)
+    if len(password) < 6:
+        return Response({'error': 'Password must be at least 6 characters.'}, status=status.HTTP_400_BAD_REQUEST)
+
+    user = request.user
+    user.set_password(password)
+    user.must_change_password = False
+    user.save()
+    return Response({'message': 'Password changed successfully.'})
+
+
+@api_view(['POST'])
 @permission_classes([AllowAny])
 def api_login(request):
     """
@@ -119,6 +147,7 @@ def api_login(request):
         'role': user.role,
         'clinic_id': user.clinic_id,
         'clinic_name': user.clinic.name if user.clinic else None,
+        'must_change_password': user.must_change_password,
     }
 
     if user.role == User.Role.ASSISTANT:

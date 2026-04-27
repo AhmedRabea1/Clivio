@@ -155,6 +155,7 @@ class User(AbstractBaseUser, PermissionsMixin):
     role_title = models.CharField(max_length=100, blank=True)
     is_active = models.BooleanField(default=True)
     is_staff = models.BooleanField(default=False)
+    must_change_password = models.BooleanField(default=False)
     date_joined = models.DateTimeField(auto_now_add=True)
 
     objects = UserManager()

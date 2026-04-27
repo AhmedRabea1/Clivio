@@ -253,6 +253,7 @@ class AssistantCreateSerializer(serializers.Serializer):
     name = serializers.CharField()
     email = serializers.EmailField()
     phone = serializers.CharField(max_length=30)
+    password = serializers.CharField(write_only=True, min_length=6)
     branch_id = serializers.IntegerField(required=False, allow_null=True, default=None)
     is_active = serializers.BooleanField(required=False, default=True)
     role_ids = serializers.ListField(
@@ -290,13 +291,15 @@ class AssistantCreateSerializer(serializers.Serializer):
         role_ids = validated_data.pop('role_ids', [])
         branch_id = validated_data.pop('branch_id', None)
 
-        user = User.objects.create(
+        user = User.objects.create_user(
             email=validated_data['email'],
+            password=validated_data['password'],
             name=validated_data['name'],
             phone=validated_data.get('phone', ''),
             role=User.Role.ASSISTANT,
             clinic=request.user.clinic,
             is_active=validated_data.get('is_active', True),
+            must_change_password=True,
         )
         branch = Branch.objects.filter(pk=branch_id).first() if branch_id else None
         assistant = Assistant.objects.create(user=user, branch=branch)
@@ -379,6 +382,7 @@ class DoctorCreateSerializer(serializers.Serializer):
     email = serializers.EmailField()
     phone = serializers.CharField(max_length=30)
     specialty = serializers.CharField(required=False, allow_blank=True, default='')
+    password = serializers.CharField(write_only=True, min_length=6)
     branch_schedules = BranchScheduleSerializer(many=True, required=False)
 
     def validate_email(self, value):
@@ -413,12 +417,14 @@ class DoctorCreateSerializer(serializers.Serializer):
     def create(self, validated_data):
         branch_schedules = validated_data.pop('branch_schedules', [])
         request = self.context.get('request')
-        user = User.objects.create(
+        user = User.objects.create_user(
             email=validated_data['email'],
+            password=validated_data['password'],
             name=validated_data['name'],
             phone=validated_data.get('phone', ''),
             role=User.Role.DOCTOR,
             clinic=request.user.clinic,
+            must_change_password=True,
         )
         doctor = Doctor.objects.create(
             user=user,
