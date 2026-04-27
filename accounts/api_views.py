@@ -55,19 +55,11 @@ def _token_pair_for_user(user):
     refresh['role'] = user.role
     refresh['clinic_id'] = user.clinic_id
     refresh['name'] = user.name
+    refresh['token_version'] = user.token_version
     return {
         'access': str(refresh.access_token),
         'refresh': str(refresh),
     }
-
-
-def _require_super_admin(request):
-    if request.user.role != User.Role.SUPER_ADMIN:
-        return Response(
-            {'error': 'Only super admins can perform this action.'},
-            status=status.HTTP_403_FORBIDDEN,
-        )
-    return None
 
 
 # ─── Auth endpoints ────────────────────────────────────────────────────────────
@@ -258,10 +250,6 @@ def api_users(request):
     GET  /api/users?role=doctor|assistant  — list users in clinic
     POST /api/users                         — create doctor or assistant
     """
-    denied = _require_super_admin(request)
-    if denied:
-        return denied
-
     if request.method == 'GET':
         qs = User.objects.filter(clinic=request.user.clinic).prefetch_related('branch_assignments__branch')
         role = request.query_params.get('role')
@@ -294,10 +282,6 @@ def api_user_detail(request, pk):
     if request.method == 'GET':
         return Response(UserSerializer(user).data)
 
-    denied = _require_super_admin(request)
-    if denied:
-        return denied
-
     if request.method == 'DELETE':
         user.delete()
         return Response(status=status.HTTP_204_NO_CONTENT)
@@ -315,10 +299,6 @@ def api_user_detail(request, pk):
 @permission_classes([IsAuthenticated])
 def api_user_status(request, pk):
     """PATCH /api/users/:id/status — activate or deactivate user."""
-    denied = _require_super_admin(request)
-    if denied:
-        return denied
-
     try:
         user = User.objects.get(pk=pk, clinic=request.user.clinic)
     except User.DoesNotExist:
@@ -340,10 +320,6 @@ def api_user_branches(request, pk):
     POST  /api/users/:id/branches — bulk-add branch assignments
     PATCH /api/users/:id/branches — replace all branch assignments
     """
-    denied = _require_super_admin(request)
-    if denied:
-        return denied
-
     try:
         user = User.objects.get(pk=pk, clinic=request.user.clinic)
     except User.DoesNotExist:
@@ -397,10 +373,6 @@ def api_doctors(request):
     GET  /api/doctors  — list all doctors in clinic
     POST /api/doctors  — create a new doctor
     """
-    denied = _require_super_admin(request)
-    if denied:
-        return denied
-
     if request.method == 'GET':
         doctors = Doctor.objects.filter(
             user__clinic=request.user.clinic
@@ -432,10 +404,6 @@ def api_doctor_detail(request, pk):
     if request.method == 'GET':
         return Response(DoctorSerializer(doctor).data)
 
-    denied = _require_super_admin(request)
-    if denied:
-        return denied
-
     if request.method == 'DELETE':
         doctor.user.delete()
         return Response(status=status.HTTP_204_NO_CONTENT)
@@ -451,10 +419,6 @@ def api_doctor_detail(request, pk):
 @permission_classes([IsAuthenticated])
 def api_doctor_status(request, pk):
     """PATCH /api/doctors/:id/status — activate or deactivate doctor."""
-    denied = _require_super_admin(request)
-    if denied:
-        return denied
-
     try:
         doctor = Doctor.objects.select_related('user').get(
             user__pk=pk, user__clinic=request.user.clinic
@@ -480,10 +444,6 @@ def api_assistants(request):
     GET  /api/assistants  — list all assistants in clinic
     POST /api/assistants  — create assistant
     """
-    denied = _require_super_admin(request)
-    if denied:
-        return denied
-
     if request.method == 'GET':
         assistants = Assistant.objects.filter(
             user__clinic=request.user.clinic
@@ -515,19 +475,21 @@ def api_assistant_detail(request, pk):
     if request.method == 'GET':
         return Response(AssistantSerializer(assistant).data)
 
-    denied = _require_super_admin(request)
-    if denied:
-        return denied
-
     if request.method == 'DELETE':
         assistant.user.delete()
         return Response(status=status.HTTP_204_NO_CONTENT)
 
+    roles_before = set(assistant.roles.values_list('id', flat=True))
     serializer = AssistantCreateSerializer(
         assistant, data=request.data, partial=True, context={'request': request}
     )
     if serializer.is_valid():
         assistant = serializer.save()
+        if 'role_ids' in request.data:
+            roles_after = set(assistant.roles.values_list('id', flat=True))
+            if roles_before != roles_after:
+                assistant.user.token_version += 1
+                assistant.user.save(update_fields=['token_version'])
         return Response(AssistantSerializer(assistant).data)
     return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
@@ -536,10 +498,6 @@ def api_assistant_detail(request, pk):
 @permission_classes([IsAuthenticated])
 def api_assistant_status(request, pk):
     """PATCH /api/assistants/:id/status — activate or deactivate assistant."""
-    denied = _require_super_admin(request)
-    if denied:
-        return denied
-
     try:
         assistant = Assistant.objects.select_related('user').get(
             user__pk=pk, user__clinic=request.user.clinic
@@ -604,11 +562,6 @@ def api_configuration(request):
         return Response({'error': 'No clinic associated with this account.'}, status=status.HTTP_400_BAD_REQUEST)
 
     config = Configuration.objects.filter(clinic=clinic).first()
-
-    # POST / PATCH require super_admin
-    denied = _require_super_admin(request)
-    if denied:
-        return denied
 
     if request.method == 'POST':
         if config:

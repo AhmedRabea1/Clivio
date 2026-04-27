@@ -24,7 +24,11 @@
       "Bash(python manage.py makemigrations accounts --name add_slot_interval_to_configuration)",
       "Bash(python manage.py makemigrations appointments --name remove_patient_fields)",
       "Bash(python manage.py makemigrations appointments --name add_reservation_model)",
-      "Bash(python manage.py makemigrations accounts --name add_appointment_roles)"
+      "Bash(python manage.py makemigrations accounts --name add_appointment_roles)",
+      "Bash(python manage.py makemigrations accounts --name add_assistant_roles)",
+      "Bash(xargs cat *)",
+      "Bash(python manage.py shell -c \"from accounts.models import AssistantRole; r = AssistantRole.objects.get\\(role_name='add_assistant'\\); print\\(r.get_role_name_display\\(\\)\\)\")",
+      "Bash(python manage.py makemigrations accounts --name add_token_version)"
     ]
   }
 }

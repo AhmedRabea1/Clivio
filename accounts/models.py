@@ -71,6 +71,10 @@ class AssistantRole(models.Model):
         ADD_APPOINTMENT   = 'add_appointment',   'Add Appointments'
         EDIT_APPOINTMENT  = 'edit_appointment',  'Edit Appointments'
         DELETE_APPOINTMENT = 'delete_appointment', 'Delete Appointments'
+        VIEW_ASSISTANT    = 'view_assistant',    'View Assistant'
+        ADD_ASSISTANT     = 'add_assistant',     'Add Assistant'
+        EDIT_ASSISTANT    = 'edit_assistant',    'Edit Assistant'
+        DELETE_ASSISTANT  = 'delete_assistant',  'Delete Assistant'
 
     role_name = models.CharField(max_length=30, choices=RoleName.choices, unique=True)
 
@@ -160,6 +164,7 @@ class User(AbstractBaseUser, PermissionsMixin):
     is_active = models.BooleanField(default=True)
     is_staff = models.BooleanField(default=False)
     must_change_password = models.BooleanField(default=False)
+    token_version = models.PositiveIntegerField(default=0)
     date_joined = models.DateTimeField(auto_now_add=True)
 
     objects = UserManager()

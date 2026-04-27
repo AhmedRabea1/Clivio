@@ -3,18 +3,8 @@ from rest_framework.decorators import api_view, permission_classes
 from rest_framework.permissions import IsAuthenticated, AllowAny
 from rest_framework.response import Response
 
-from accounts.models import User
 from .models import Branch, UserBranchAssignment
 from .serializers import BranchSerializer, BranchUserSerializer, PublicBranchSerializer
-
-
-def _require_super_admin(request):
-    if request.user.role != User.Role.SUPER_ADMIN:
-        return Response(
-            {'error': 'Only super admins can perform this action.'},
-            status=status.HTTP_403_FORBIDDEN,
-        )
-    return None
 
 
 # ─── Public branches endpoint ─────────────────────────────────────────────────
@@ -65,10 +55,6 @@ def api_branches(request):
             'results': serializer.data,
         })
 
-    denied = _require_super_admin(request)
-    if denied:
-        return denied
-
     serializer = BranchSerializer(data=request.data, context={'request': request})
     if serializer.is_valid():
         branch = serializer.save()
@@ -102,14 +88,7 @@ def api_branch_detail(request, pk):
     if request.method == 'GET':
         return Response(BranchSerializer(branch, context={'request': request}).data)
 
-    denied = _require_super_admin(request)
-    if denied:
-        return denied
-
     if request.method == 'DELETE':
-        denied = _require_super_admin(request)
-        if denied:
-            return denied
         branch.delete()
         return Response(status=status.HTTP_204_NO_CONTENT)
 
@@ -129,10 +108,6 @@ def api_branch_status(request, pk):
     PATCH /api/branches/:id/status
     Deactivation is blocked if upcoming confirmed appointments exist.
     """
-    denied = _require_super_admin(request)
-    if denied:
-        return denied
-
     try:
         branch = Branch.objects.get(pk=pk, clinic=request.user.clinic)
     except Branch.DoesNotExist:
