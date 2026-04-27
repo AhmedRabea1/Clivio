@@ -23,7 +23,8 @@
       "Bash(python manage.py makemigrations accounts --name add_assistant_model)",
       "Bash(python manage.py makemigrations accounts --name add_slot_interval_to_configuration)",
       "Bash(python manage.py makemigrations appointments --name remove_patient_fields)",
-      "Bash(python manage.py makemigrations appointments --name add_reservation_model)"
+      "Bash(python manage.py makemigrations appointments --name add_reservation_model)",
+      "Bash(python manage.py makemigrations accounts --name add_appointment_roles)"
     ]
   }
 }

@@ -67,6 +67,10 @@ class AssistantRole(models.Model):
         ADD_PATIENT       = 'add_patient',       'Add Patient'
         EDIT_PATIENT      = 'edit_patient',      'Edit Patient'
         DELETE_PATIENT    = 'delete_patient',    'Delete Patient'
+        VIEW_APPOINTMENT  = 'view_appointment',  'View Appointments'
+        ADD_APPOINTMENT   = 'add_appointment',   'Add Appointments'
+        EDIT_APPOINTMENT  = 'edit_appointment',  'Edit Appointments'
+        DELETE_APPOINTMENT = 'delete_appointment', 'Delete Appointments'
 
     role_name = models.CharField(max_length=30, choices=RoleName.choices, unique=True)
 
