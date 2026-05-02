@@ -177,3 +177,18 @@ CORS_ALLOW_CREDENTIALS = True
 EMAIL_BACKEND = 'django.core.mail.backends.console.EmailBackend'
 DEFAULT_FROM_EMAIL = 'noreply@clivio.com'
 FRONTEND_URL = os.environ.get('FRONTEND_URL', 'http://localhost:3000')
+
+# ─── Logging ──────────────────────────────────────────────────────────────────
+LOGGING = {
+    'version': 1,
+    'disable_existing_loggers': False,
+    'handlers': {
+        'console': {
+            'class': 'logging.StreamHandler',
+        },
+    },
+    'root': {
+        'handlers': ['console'],
+        'level': 'ERROR',
+    },
+}
