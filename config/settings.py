@@ -5,7 +5,7 @@ from dotenv import load_dotenv
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 
-load_dotenv(BASE_DIR / '.env')
+load_dotenv(BASE_DIR / '.env', override=True)
 
 SECRET_KEY = os.environ.get('SECRET_KEY', 'django-insecure-change-me-in-production')
 
@@ -68,20 +68,30 @@ TEMPLATES = [
 WSGI_APPLICATION = 'config.wsgi.application'
 
 
-# Database — Supabase PostgreSQL
-DATABASES = {
-    'default': {
-        'ENGINE': 'django.db.backends.postgresql',
-        'NAME': os.environ.get('DB_NAME', 'postgres'),
-        'USER': os.environ.get('DB_USER', 'postgres.cweoxnvgnlissgcztbdc'),
-        'PASSWORD': os.environ.get('DB_PASSWORD', 'Clivio_test_db'),
-        'HOST': os.environ.get('DB_HOST', 'aws-1-eu-central-1.pooler.supabase.com'),
-        'PORT': os.environ.get('DB_PORT', '5432'),
-        'OPTIONS': {
-            'sslmode': 'require',
-        },
+# Database — SQLite for local dev, Supabase PostgreSQL for production
+if os.environ.get('USE_SQLITE', 'False') == 'True':
+    DATABASES = {
+        'default': {
+            'ENGINE': 'django.db.backends.sqlite3',
+            'NAME': BASE_DIR / 'db.sqlite3',
+        }
     }
-}
+else:
+    DATABASES = {
+        'default': {
+            'ENGINE': 'django.db.backends.postgresql',
+            'NAME': os.environ.get('DB_NAME', 'postgres'),
+            'USER': os.environ.get('DB_USER', 'postgres.cweoxnvgnlissgcztbdc'),
+            'PASSWORD': os.environ.get('DB_PASSWORD', 'Clivio_test_db'),
+            'HOST': os.environ.get('DB_HOST', 'aws-1-eu-central-1.pooler.supabase.com'),
+            'PORT': os.environ.get('DB_PORT', '5432'),
+            'OPTIONS': {
+                'sslmode': 'require',
+                'connect_timeout': 10,
+            },
+            'CONN_MAX_AGE': 60,
+        }
+    }
 
 
 AUTH_USER_MODEL = 'accounts.User'
