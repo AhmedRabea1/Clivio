@@ -10,3 +10,4 @@ django-cors-headers==4.9.0
 PyJWT==2.12.1
 cloudinary==1.44.2
 django-cloudinary-storage==0.3.0
+dj-database-url==2.3.0
