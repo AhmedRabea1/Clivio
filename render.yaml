@@ -3,7 +3,7 @@ services:
     name: clivio
     runtime: python
     buildCommand: "./build.sh"
-    startCommand: "gunicorn config.wsgi:application --bind 0.0.0.0:$PORT --workers 1 --timeout 120 --preload"
+    startCommand: "python manage.py migrate --no-input && gunicorn config.wsgi:application --bind 0.0.0.0:$PORT --workers 1 --timeout 120 --preload"
     envVars:
       - key: SECRET_KEY
         generateValue: true
