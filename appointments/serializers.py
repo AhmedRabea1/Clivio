@@ -2,10 +2,21 @@ from rest_framework import serializers
 from .models import Patient, Reservation
 
 
-class PatientSerializer(serializers.ModelSerializer):
+class PatientFamilyMemberSerializer(serializers.ModelSerializer):
     class Meta:
         model = Patient
-        fields = ('id', 'first_name', 'last_name', 'mobile_number', 'date_of_birth', 'medical_notes')
+        fields = ('id', 'first_name', 'last_name', 'date_of_birth', 'medical_notes')
+
+
+class PatientSerializer(serializers.ModelSerializer):
+    family_members = PatientFamilyMemberSerializer(many=True, read_only=True)
+
+    class Meta:
+        model = Patient
+        fields = (
+            'id', 'first_name', 'last_name', 'mobile_number', 'date_of_birth',
+            'medical_notes', 'is_primary', 'primary_patient_id', 'family_members',
+        )
 
 
 class ReservationSerializer(serializers.ModelSerializer):
@@ -70,14 +81,6 @@ class PatientCreateSerializer(serializers.ModelSerializer):
         extra_kwargs = {
             'medical_notes': {'required': False, 'allow_blank': True},
         }
-
-    def validate_mobile_number(self, value):
-        qs = Patient.objects.filter(mobile_number=value)
-        if self.instance:
-            qs = qs.exclude(pk=self.instance.pk)
-        if qs.exists():
-            raise serializers.ValidationError('A patient with this mobile number already exists.')
-        return value
 
 
 class ReservationCreateSerializer(serializers.Serializer):
@@ -146,8 +149,8 @@ class PublicReservationCreateSerializer(serializers.Serializer):
             if not Doctor.objects.filter(user__pk=attrs['doctor_id'], user__is_active=True).exists():
                 raise serializers.ValidationError({'doctor_id': 'Invalid or inactive doctor.'})
 
-        # If mobile is new, patient fields are required
-        mobile_exists = Patient.objects.filter(mobile_number=attrs['mobile_number']).exists()
+        # If mobile is new (no primary patient), patient fields are required
+        mobile_exists = Patient.objects.filter(mobile_number=attrs['mobile_number'], is_primary=True).exists()
         if not mobile_exists:
             for field in ('first_name', 'last_name', 'date_of_birth'):
                 if not attrs.get(field):
@@ -163,9 +166,10 @@ class PublicReservationCreateSerializer(serializers.Serializer):
 
         data = self.validated_data
 
-        # Get or create patient
+        # Get or create primary patient
         patient, _ = Patient.objects.get_or_create(
             mobile_number=data['mobile_number'],
+            is_primary=True,
             defaults={
                 'first_name':    data.get('first_name', ''),
                 'last_name':     data.get('last_name', ''),

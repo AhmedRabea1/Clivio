@@ -28,7 +28,8 @@
       "Bash(python manage.py makemigrations accounts --name add_assistant_roles)",
       "Bash(xargs cat *)",
       "Bash(python manage.py shell -c \"from accounts.models import AssistantRole; r = AssistantRole.objects.get\\(role_name='add_assistant'\\); print\\(r.get_role_name_display\\(\\)\\)\")",
-      "Bash(python manage.py makemigrations accounts --name add_token_version)"
+      "Bash(python manage.py makemigrations accounts --name add_token_version)",
+      "Bash(python manage.py migrate appointments 0007)"
     ]
   }
 }

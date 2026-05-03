@@ -6,7 +6,14 @@ class Patient(models.Model):
     first_name = models.CharField(max_length=100)
     last_name  = models.CharField(max_length=100)
     date_of_birth = models.DateField()
-    mobile_number = models.CharField(max_length=20, unique=True)
+    mobile_number = models.CharField(max_length=20)
+    is_primary = models.BooleanField(default=True)
+    primary_patient = models.ForeignKey(
+        'self',
+        null=True, blank=True,
+        on_delete=models.SET_NULL,
+        related_name='family_members',
+    )
     medical_notes = models.TextField(blank=True)
     created_by = models.ForeignKey(
         settings.AUTH_USER_MODEL,

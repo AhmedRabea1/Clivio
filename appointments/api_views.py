@@ -37,17 +37,38 @@ def api_patients(request):
         page = paginator.paginate_queryset(qs, request)
         return paginator.get_paginated_response(PatientSerializer(page, many=True).data)
 
+    mobile = request.data.get('mobile_number', '').strip()
+    is_for_self = str(request.data.get('is_for_self', True)).lower() not in ('false', '0', 'no')
+
+    if is_for_self:
+        existing = Patient.objects.filter(mobile_number=mobile, is_primary=True).first()
+        if existing:
+            return Response(PatientSerializer(existing).data, status=status.HTTP_200_OK)
+        serializer = PatientCreateSerializer(data=request.data)
+        if serializer.is_valid():
+            patient = serializer.save(is_primary=True, created_by=request.user)
+            # Auto-link orphaned family members with same mobile
+            Patient.objects.filter(
+                mobile_number=mobile, is_primary=False, primary_patient__isnull=True
+            ).update(primary_patient=patient)
+            return Response(PatientSerializer(patient).data, status=status.HTTP_201_CREATED)
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+    # Family member
+    first_name = request.data.get('first_name', '').strip()
+    last_name = request.data.get('last_name', '').strip()
+    existing = Patient.objects.filter(
+        mobile_number=mobile, is_primary=False,
+        first_name__iexact=first_name, last_name__iexact=last_name,
+    ).first()
+    if existing:
+        return Response(PatientSerializer(existing).data, status=status.HTTP_200_OK)
+    primary = Patient.objects.filter(mobile_number=mobile, is_primary=True).first()
     serializer = PatientCreateSerializer(data=request.data)
     if serializer.is_valid():
-        patient = serializer.save()
+        patient = serializer.save(is_primary=False, primary_patient=primary, created_by=request.user)
         return Response(PatientSerializer(patient).data, status=status.HTTP_201_CREATED)
-    errors = serializer.errors
-    if 'mobile_number' in errors:
-        return Response(
-            {'message': errors['mobile_number'][0]},
-            status=status.HTTP_400_BAD_REQUEST,
-        )
-    return Response(errors, status=status.HTTP_400_BAD_REQUEST)
+    return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
 
 @api_view(['GET', 'PATCH', 'DELETE'])
