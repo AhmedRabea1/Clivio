@@ -538,22 +538,21 @@ def api_public_configuration(request):
 
 # ─── Configuration endpoint ────────────────────────────────────────────────────
 
-@api_view(['GET', 'POST', 'PATCH'])
+@api_view(['GET', 'PATCH'])
 @permission_classes([AllowAny])
 def api_configuration(request):
     """
-    GET   /api/configuration  — retrieve clinic configuration (all roles)
-    POST  /api/configuration  — create configuration (super_admin only, first-time setup)
-    PATCH /api/configuration  — update configuration (super_admin only)
+    GET   /api/configuration  — retrieve clinic configuration, returns null if not set up yet
+    PATCH /api/configuration  — create or update configuration (upsert)
     Accepts multipart/form-data to support file uploads (logo, hero_image).
     """
     if request.method == 'GET':
         config = Configuration.objects.select_related('clinic').first()
         if not config:
-            return Response({'detail': 'No configuration found.'}, status=status.HTTP_404_NOT_FOUND)
+            return Response(None, status=status.HTTP_200_OK)
         return Response(ConfigurationSerializer(config, context={'request': request}).data)
 
-    # POST / PATCH — must be authenticated super_admin
+    # PATCH — must be authenticated
     if not request.user or not request.user.is_authenticated:
         return Response({'error': 'Authentication required.'}, status=status.HTTP_401_UNAUTHORIZED)
 
@@ -563,24 +562,13 @@ def api_configuration(request):
 
     config = Configuration.objects.filter(clinic=clinic).first()
 
-    if request.method == 'POST':
-        if config:
-            return Response(
-                {'error': 'Configuration already exists. Use PATCH to update.'},
-                status=status.HTTP_409_CONFLICT,
-            )
+    if config:
+        serializer = ConfigurationSerializer(config, data=request.data, partial=True, context={'request': request})
+    else:
         serializer = ConfigurationSerializer(data=request.data, context={'request': request})
-        if serializer.is_valid():
-            serializer.save(clinic=clinic)
-            return Response(serializer.data, status=status.HTTP_201_CREATED)
-        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
-    # PATCH
-    if not config:
-        return Response({'error': 'No configuration found. Use POST to create it first.'}, status=status.HTTP_404_NOT_FOUND)
-    serializer = ConfigurationSerializer(config, data=request.data, partial=True, context={'request': request})
     if serializer.is_valid():
-        serializer.save()
+        serializer.save(clinic=clinic)
         return Response(serializer.data)
     return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
