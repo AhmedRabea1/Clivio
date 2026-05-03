@@ -532,7 +532,7 @@ def api_public_configuration(request):
     """GET /api/public/configuration — no auth required, for external portals."""
     config = Configuration.objects.select_related('clinic').first()
     if not config:
-        return Response({'detail': 'No configuration found.'}, status=status.HTTP_404_NOT_FOUND)
+        return Response(None, status=status.HTTP_200_OK)
     return Response(ConfigurationSerializer(config, context={'request': request}).data)
 
 
