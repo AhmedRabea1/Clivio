@@ -123,8 +123,9 @@ class ReservationCreateSerializer(serializers.Serializer):
 
 
 class PublicReservationCreateSerializer(serializers.Serializer):
-    # Patient fields — required only when mobile is new
+    # Patient fields — required only when patient is new
     mobile_number = serializers.CharField(max_length=20)
+    is_for_self   = serializers.BooleanField(default=True)
     first_name    = serializers.CharField(required=False)
     last_name     = serializers.CharField(required=False)
     date_of_birth = serializers.DateField(required=False)
@@ -140,18 +141,27 @@ class PublicReservationCreateSerializer(serializers.Serializer):
         from branches.models import Branch
         from accounts.models import Doctor
 
-        # Validate branch exists
         if not Branch.objects.filter(pk=attrs['branch_id'], is_active=True).exists():
             raise serializers.ValidationError({'branch_id': 'Invalid or inactive branch.'})
 
-        # Validate doctor if provided
         if attrs.get('doctor_id'):
             if not Doctor.objects.filter(user__pk=attrs['doctor_id'], user__is_active=True).exists():
                 raise serializers.ValidationError({'doctor_id': 'Invalid or inactive doctor.'})
 
-        # If mobile is new (no primary patient), patient fields are required
-        mobile_exists = Patient.objects.filter(mobile_number=attrs['mobile_number'], is_primary=True).exists()
-        if not mobile_exists:
+        mobile = attrs['mobile_number']
+        is_for_self = attrs.get('is_for_self', True)
+
+        if is_for_self:
+            patient_exists = Patient.objects.filter(mobile_number=mobile, is_primary=True).exists()
+        else:
+            first_name = attrs.get('first_name', '').strip()
+            last_name  = attrs.get('last_name', '').strip()
+            patient_exists = Patient.objects.filter(
+                mobile_number=mobile, is_primary=False,
+                first_name__iexact=first_name, last_name__iexact=last_name,
+            ).exists()
+
+        if not patient_exists:
             for field in ('first_name', 'last_name', 'date_of_birth'):
                 if not attrs.get(field):
                     raise serializers.ValidationError(
@@ -165,28 +175,50 @@ class PublicReservationCreateSerializer(serializers.Serializer):
         from accounts.models import Doctor
 
         data = self.validated_data
+        mobile      = data['mobile_number']
+        is_for_self = data.get('is_for_self', True)
 
-        # Get or create primary patient
-        patient, _ = Patient.objects.get_or_create(
-            mobile_number=data['mobile_number'],
-            is_primary=True,
-            defaults={
-                'first_name':    data.get('first_name', ''),
-                'last_name':     data.get('last_name', ''),
-                'date_of_birth': data.get('date_of_birth'),
-                'medical_notes': data.get('medical_notes', ''),
-            },
-        )
+        if is_for_self:
+            patient, created = Patient.objects.get_or_create(
+                mobile_number=mobile,
+                is_primary=True,
+                defaults={
+                    'first_name':    data.get('first_name', ''),
+                    'last_name':     data.get('last_name', ''),
+                    'date_of_birth': data.get('date_of_birth'),
+                    'medical_notes': data.get('medical_notes', ''),
+                },
+            )
+            if created:
+                Patient.objects.filter(
+                    mobile_number=mobile, is_primary=False, primary_patient__isnull=True
+                ).update(primary_patient=patient)
+        else:
+            first_name = data.get('first_name', '').strip()
+            last_name  = data.get('last_name', '').strip()
+            primary    = Patient.objects.filter(mobile_number=mobile, is_primary=True).first()
+            patient = Patient.objects.filter(
+                mobile_number=mobile, is_primary=False,
+                first_name__iexact=first_name, last_name__iexact=last_name,
+            ).first()
+            if not patient:
+                patient = Patient.objects.create(
+                    mobile_number=mobile,
+                    is_primary=False,
+                    primary_patient=primary,
+                    first_name=first_name,
+                    last_name=last_name,
+                    date_of_birth=data.get('date_of_birth'),
+                    medical_notes=data.get('medical_notes', ''),
+                )
 
         branch = Branch.objects.get(pk=data['branch_id'])
         doctor = Doctor.objects.filter(user__pk=data.get('doctor_id')).first() if data.get('doctor_id') else None
 
-        reservation = Reservation.objects.create(
+        return Reservation.objects.create(
             patient=patient,
             branch=branch,
             doctor=doctor,
             date_of_visit=data['date_of_visit'],
             slot=data.get('slot'),
         )
-
-        return reservation
