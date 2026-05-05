@@ -14,6 +14,12 @@ class Patient(models.Model):
         on_delete=models.SET_NULL,
         related_name='family_members',
     )
+    pulse_packages = models.ManyToManyField(
+        'accounts.PulsePackage', blank=True, related_name='patients'
+    )
+    area_packages = models.ManyToManyField(
+        'accounts.AreaPackage', blank=True, related_name='patients'
+    )
     medical_notes = models.TextField(blank=True)
     created_by = models.ForeignKey(
         settings.AUTH_USER_MODEL,

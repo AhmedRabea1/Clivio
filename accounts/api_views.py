@@ -721,7 +721,7 @@ def api_pulse_packages(request):
     if request.method == 'GET':
         qs = PulsePackage.objects.all()
         paginator = PageNumberPagination()
-        paginator.page_size = 20
+        paginator.page_size = 10
         page = paginator.paginate_queryset(qs, request)
         return paginator.get_paginated_response(PulsePackageSerializer(page, many=True).data)
     serializer = PulsePackageSerializer(data=request.data)
@@ -761,7 +761,7 @@ def api_area_packages(request):
     if request.method == 'GET':
         qs = AreaPackage.objects.all()
         paginator = PageNumberPagination()
-        paginator.page_size = 20
+        paginator.page_size = 10
         page = paginator.paginate_queryset(qs, request)
         return paginator.get_paginated_response(AreaPackageSerializer(page, many=True).data)
     serializer = AreaPackageSerializer(data=request.data)

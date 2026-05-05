@@ -10,13 +10,22 @@ class PatientFamilyMemberSerializer(serializers.ModelSerializer):
 
 class PatientSerializer(serializers.ModelSerializer):
     family_members = PatientFamilyMemberSerializer(many=True, read_only=True)
+    packages       = serializers.SerializerMethodField()
 
     class Meta:
         model = Patient
         fields = (
             'id', 'first_name', 'last_name', 'mobile_number', 'date_of_birth',
-            'medical_notes', 'is_primary', 'primary_patient_id', 'family_members',
+            'medical_notes', 'is_primary', 'primary_patient_id', 'family_members', 'packages',
         )
+
+    def get_packages(self, obj):
+        result = []
+        for p in obj.pulse_packages.all():
+            result.append({'type': 1, 'package_id': p.id, 'pulses': p.pulses, 'price': str(p.price), 'description': p.description})
+        for p in obj.area_packages.all():
+            result.append({'type': 2, 'package_id': p.id, 'name': p.name, 'price': str(p.price), 'description': p.description})
+        return result
 
 
 class ReservationSerializer(serializers.ModelSerializer):

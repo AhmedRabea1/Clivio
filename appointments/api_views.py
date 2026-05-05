@@ -14,6 +14,16 @@ from .serializers import (
 )
 
 
+# ─── Patient helpers ──────────────────────────────────────────────────────────
+
+def _set_patient_packages(patient, packages_data):
+    from accounts.models import PulsePackage, AreaPackage
+    pulse_ids = [p['package_id'] for p in packages_data if p.get('type') == 1]
+    area_ids  = [p['package_id'] for p in packages_data if p.get('type') == 2]
+    patient.pulse_packages.set(PulsePackage.objects.filter(pk__in=pulse_ids))
+    patient.area_packages.set(AreaPackage.objects.filter(pk__in=area_ids))
+
+
 # ─── Patient endpoints ─────────────────────────────────────────────────────────
 
 @api_view(['GET', 'POST'])
@@ -47,10 +57,11 @@ def api_patients(request):
         serializer = PatientCreateSerializer(data=request.data)
         if serializer.is_valid():
             patient = serializer.save(is_primary=True, created_by=request.user)
-            # Auto-link orphaned family members with same mobile
             Patient.objects.filter(
                 mobile_number=mobile, is_primary=False, primary_patient__isnull=True
             ).update(primary_patient=patient)
+            if 'packages' in request.data:
+                _set_patient_packages(patient, request.data['packages'])
             return Response(PatientSerializer(patient).data, status=status.HTTP_201_CREATED)
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
@@ -67,6 +78,8 @@ def api_patients(request):
     serializer = PatientCreateSerializer(data=request.data)
     if serializer.is_valid():
         patient = serializer.save(is_primary=False, primary_patient=primary, created_by=request.user)
+        if 'packages' in request.data:
+            _set_patient_packages(patient, request.data['packages'])
         return Response(PatientSerializer(patient).data, status=status.HTTP_201_CREATED)
     return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
@@ -94,6 +107,8 @@ def api_patient_detail(request, pk):
     serializer = PatientCreateSerializer(patient, data=request.data, partial=True)
     if serializer.is_valid():
         serializer.save()
+        if 'packages' in request.data:
+            _set_patient_packages(patient, request.data['packages'])
         return Response(PatientSerializer(patient).data)
     return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
