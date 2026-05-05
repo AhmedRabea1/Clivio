@@ -493,8 +493,8 @@ class MachineSerializer(serializers.ModelSerializer):
 
     class Meta:
         model  = Machine
-        fields = ('id', 'service', 'service_name', 'name', 'type', 'type_display', 'price', 'description')
-        extra_kwargs = {'description': {'required': False}}
+        fields = ('id', 'service', 'service_name', 'name', 'type', 'type_display', 'price', 'description', 'latest_maintenance_date')
+        extra_kwargs = {'description': {'required': False}, 'latest_maintenance_date': {'required': False}}
 
     def validate_name(self, value):
         qs = Machine.objects.filter(name__iexact=value)

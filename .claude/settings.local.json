@@ -32,7 +32,9 @@
       "Bash(python manage.py migrate appointments 0007)",
       "Bash(python manage.py migrate accounts 0025)",
       "Bash(python manage.py makemigrations appointments --name patient_packages)",
-      "Bash(python manage.py migrate appointments 0008)"
+      "Bash(python manage.py migrate appointments 0008)",
+      "Bash(python manage.py makemigrations accounts --name add_machine_maintenance_date)",
+      "Bash(python manage.py migrate accounts 0026)"
     ]
   }
 }
