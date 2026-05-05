@@ -13,13 +13,14 @@ from rest_framework.response import Response
 from rest_framework_simplejwt.tokens import RefreshToken
 from rest_framework_simplejwt.exceptions import TokenError
 
-from .models import User, Configuration, Doctor, AssistantRole, Assistant, Service, Product, Machine
+from .models import User, Configuration, Doctor, AssistantRole, Assistant, Service, Product, Machine, PulsePackage, AreaPackage
 from .serializers import (
     LoginSerializer, UserSerializer,
     UserCreateSerializer, UserUpdateBranchesSerializer,
     ConfigurationSerializer, DoctorSerializer, DoctorCreateSerializer,
     AssistantRoleSerializer, AssistantSerializer, AssistantCreateSerializer,
     ServiceSerializer, ProductSerializer, MachineSerializer,
+    PulsePackageSerializer, AreaPackageSerializer,
 )
 from branches.models import Branch, UserBranchAssignment
 
@@ -709,4 +710,87 @@ def api_machine_detail(request, pk):
     if serializer.is_valid():
         serializer.save()
         return Response(MachineSerializer(machine).data)
+    return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+
+# ─── Pulse Packages ────────────────────────────────────────────────────────────
+
+@api_view(['GET', 'POST'])
+@permission_classes([IsAuthenticated])
+def api_pulse_packages(request):
+    if request.method == 'GET':
+        qs = PulsePackage.objects.select_related('machine').all()
+        machine_id = request.query_params.get('machine_id')
+        if machine_id:
+            qs = qs.filter(machine_id=machine_id)
+        paginator = PageNumberPagination()
+        paginator.page_size = 20
+        page = paginator.paginate_queryset(qs, request)
+        return paginator.get_paginated_response(PulsePackageSerializer(page, many=True).data)
+    serializer = PulsePackageSerializer(data=request.data)
+    if serializer.is_valid():
+        pkg = serializer.save()
+        return Response(PulsePackageSerializer(pkg).data, status=status.HTTP_201_CREATED)
+    return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+
+@api_view(['GET', 'PATCH', 'DELETE'])
+@permission_classes([IsAuthenticated])
+def api_pulse_package_detail(request, pk):
+    try:
+        pkg = PulsePackage.objects.select_related('machine').get(pk=pk)
+    except PulsePackage.DoesNotExist:
+        return Response({'error': 'Pulse package not found.'}, status=status.HTTP_404_NOT_FOUND)
+
+    if request.method == 'GET':
+        return Response(PulsePackageSerializer(pkg).data)
+
+    if request.method == 'DELETE':
+        pkg.delete()
+        return Response(status=status.HTTP_204_NO_CONTENT)
+
+    serializer = PulsePackageSerializer(pkg, data=request.data, partial=True)
+    if serializer.is_valid():
+        serializer.save()
+        return Response(PulsePackageSerializer(pkg).data)
+    return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+
+# ─── Area Packages ─────────────────────────────────────────────────────────────
+
+@api_view(['GET', 'POST'])
+@permission_classes([IsAuthenticated])
+def api_area_packages(request):
+    if request.method == 'GET':
+        qs = AreaPackage.objects.all()
+        paginator = PageNumberPagination()
+        paginator.page_size = 20
+        page = paginator.paginate_queryset(qs, request)
+        return paginator.get_paginated_response(AreaPackageSerializer(page, many=True).data)
+    serializer = AreaPackageSerializer(data=request.data)
+    if serializer.is_valid():
+        pkg = serializer.save()
+        return Response(AreaPackageSerializer(pkg).data, status=status.HTTP_201_CREATED)
+    return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+
+@api_view(['GET', 'PATCH', 'DELETE'])
+@permission_classes([IsAuthenticated])
+def api_area_package_detail(request, pk):
+    try:
+        pkg = AreaPackage.objects.get(pk=pk)
+    except AreaPackage.DoesNotExist:
+        return Response({'error': 'Area package not found.'}, status=status.HTTP_404_NOT_FOUND)
+
+    if request.method == 'GET':
+        return Response(AreaPackageSerializer(pkg).data)
+
+    if request.method == 'DELETE':
+        pkg.delete()
+        return Response(status=status.HTTP_204_NO_CONTENT)
+
+    serializer = AreaPackageSerializer(pkg, data=request.data, partial=True)
+    if serializer.is_valid():
+        serializer.save()
+        return Response(AreaPackageSerializer(pkg).data)
     return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)

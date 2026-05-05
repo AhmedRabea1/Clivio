@@ -1,5 +1,5 @@
 from rest_framework import serializers
-from .models import User, Clinic, Configuration, Doctor, AssistantRole, Assistant, Service, Product, Machine
+from .models import User, Clinic, Configuration, Doctor, AssistantRole, Assistant, Service, Product, Machine, PulsePackage, AreaPackage
 
 
 class ClinicSerializer(serializers.ModelSerializer):
@@ -503,3 +503,22 @@ class MachineSerializer(serializers.ModelSerializer):
         if qs.exists():
             raise serializers.ValidationError('A machine with this name already exists.')
         return value
+
+
+class PulsePackageSerializer(serializers.ModelSerializer):
+    machine_name = serializers.CharField(source='machine.name', read_only=True)
+
+    class Meta:
+        model  = PulsePackage
+        fields = ('id', 'machine', 'machine_name', 'pulses', 'price')
+
+    def validate_machine(self, value):
+        if not Machine.objects.filter(pk=value.pk, type=Machine.Type.PULSES).exists():
+            raise serializers.ValidationError('Machine must be of type Pulses.')
+        return value
+
+
+class AreaPackageSerializer(serializers.ModelSerializer):
+    class Meta:
+        model  = AreaPackage
+        fields = ('id', 'name', 'price')

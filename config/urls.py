@@ -18,6 +18,8 @@ from accounts.api_views import (
     api_services, api_service_detail,
     api_products, api_product_detail,
     api_machines, api_machine_detail,
+    api_pulse_packages, api_pulse_package_detail,
+    api_area_packages, api_area_package_detail,
 )
 from branches.api_views import (
     api_branches, api_branch_detail, api_branch_status, api_branch_users,
@@ -67,6 +69,14 @@ api_urlpatterns = [
     # Machines
     path('machines',             api_machines,        name='api_machines'),
     path('machines/<int:pk>',    api_machine_detail,  name='api_machine_detail'),
+
+    # Pulse Packages
+    path('pulse-packages',           api_pulse_packages,        name='api_pulse_packages'),
+    path('pulse-packages/<int:pk>',  api_pulse_package_detail,  name='api_pulse_package_detail'),
+
+    # Area Packages
+    path('area-packages',            api_area_packages,         name='api_area_packages'),
+    path('area-packages/<int:pk>',   api_area_package_detail,   name='api_area_package_detail'),
 
     # Configuration
     path('configuration',        api_configuration,        name='api_configuration'),
