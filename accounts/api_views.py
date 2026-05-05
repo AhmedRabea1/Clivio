@@ -719,10 +719,7 @@ def api_machine_detail(request, pk):
 @permission_classes([IsAuthenticated])
 def api_pulse_packages(request):
     if request.method == 'GET':
-        qs = PulsePackage.objects.select_related('machine').all()
-        machine_id = request.query_params.get('machine_id')
-        if machine_id:
-            qs = qs.filter(machine_id=machine_id)
+        qs = PulsePackage.objects.all()
         paginator = PageNumberPagination()
         paginator.page_size = 20
         page = paginator.paginate_queryset(qs, request)
@@ -738,7 +735,7 @@ def api_pulse_packages(request):
 @permission_classes([IsAuthenticated])
 def api_pulse_package_detail(request, pk):
     try:
-        pkg = PulsePackage.objects.select_related('machine').get(pk=pk)
+        pkg = PulsePackage.objects.get(pk=pk)
     except PulsePackage.DoesNotExist:
         return Response({'error': 'Pulse package not found.'}, status=status.HTTP_404_NOT_FOUND)
 

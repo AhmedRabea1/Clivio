@@ -506,19 +506,14 @@ class MachineSerializer(serializers.ModelSerializer):
 
 
 class PulsePackageSerializer(serializers.ModelSerializer):
-    machine_name = serializers.CharField(source='machine.name', read_only=True)
-
     class Meta:
         model  = PulsePackage
-        fields = ('id', 'machine', 'machine_name', 'pulses', 'price')
-
-    def validate_machine(self, value):
-        if not Machine.objects.filter(pk=value.pk, type=Machine.Type.PULSES).exists():
-            raise serializers.ValidationError('Machine must be of type Pulses.')
-        return value
+        fields = ('id', 'pulses', 'price', 'description')
+        extra_kwargs = {'description': {'required': False}}
 
 
 class AreaPackageSerializer(serializers.ModelSerializer):
     class Meta:
         model  = AreaPackage
-        fields = ('id', 'name', 'price')
+        fields = ('id', 'name', 'price', 'description')
+        extra_kwargs = {'description': {'required': False}}
