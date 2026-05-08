@@ -467,6 +467,177 @@ def api_reservation_attachment_detail(request, pk):
     return Response(status=status.HTTP_204_NO_CONTENT)
 
 
+# ─── Prescription PDF ─────────────────────────────────────────────────────────
+
+def _generate_prescription_pdf(doctor_name, patient_name, medicines, is_examination, discount, clinic_name, logo_url):
+    from io import BytesIO
+    from datetime import date
+    from reportlab.lib.pagesizes import A4
+    from reportlab.lib.units import cm
+    from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
+    from reportlab.lib.colors import HexColor
+    from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle, HRFlowable
+    from reportlab.lib.enums import TA_CENTER, TA_LEFT, TA_RIGHT
+
+    PRIMARY = HexColor('#2563EB')
+    GRAY    = HexColor('#6B7280')
+    LIGHT   = HexColor('#F3F4F6')
+    BORDER  = HexColor('#E5E7EB')
+
+    buffer = BytesIO()
+    doc    = SimpleDocTemplate(
+        buffer, pagesize=A4,
+        rightMargin=2.5*cm, leftMargin=2.5*cm,
+        topMargin=2*cm, bottomMargin=2*cm,
+    )
+    styles = getSampleStyleSheet()
+    story  = []
+
+    # ── Logo ──────────────────────────────────────────────────────────────────
+    if logo_url:
+        try:
+            import urllib.request
+            from reportlab.platypus import Image as RLImage
+            img_bytes = BytesIO(urllib.request.urlopen(logo_url, timeout=5).read())
+            logo = RLImage(img_bytes, width=5*cm, height=2.5*cm, kind='proportional')
+            logo.hAlign = 'CENTER'
+            story.append(logo)
+            story.append(Spacer(1, 0.3*cm))
+        except Exception:
+            pass
+
+    # ── Brand header ──────────────────────────────────────────────────────────
+    story.append(Paragraph('CLIVIO', ParagraphStyle(
+        'Brand', fontSize=32, textColor=PRIMARY,
+        fontName='Helvetica-Bold', alignment=TA_CENTER, spaceAfter=2,
+    )))
+    if clinic_name:
+        story.append(Paragraph(clinic_name, ParagraphStyle(
+            'Sub', fontSize=13, textColor=GRAY, alignment=TA_CENTER, spaceAfter=6,
+        )))
+    story.append(HRFlowable(width='100%', thickness=2, color=PRIMARY, spaceAfter=14))
+
+    # ── Info table ────────────────────────────────────────────────────────────
+    today      = date.today().strftime('%d %B %Y')
+    L = ParagraphStyle('L', parent=styles['Normal'], fontSize=11, alignment=TA_LEFT)
+    R = ParagraphStyle('R', parent=styles['Normal'], fontSize=11, alignment=TA_RIGHT)
+    info = Table([
+        [Paragraph(f'<b>Doctor:</b>  {doctor_name}',  L), Paragraph(f'<b>Date:</b>  {today}', R)],
+        [Paragraph(f'<b>Patient:</b>  {patient_name}', L), Paragraph(f'<b>Type:</b>  {"Examination" if is_examination else "Follow-up"}', R)],
+    ], colWidths=[9*cm, 8.5*cm])
+    info.setStyle(TableStyle([
+        ('BACKGROUND',   (0,0), (-1,-1), LIGHT),
+        ('BOX',          (0,0), (-1,-1), 0.5, BORDER),
+        ('INNERGRID',    (0,0), (-1,-1), 0.25, BORDER),
+        ('LEFTPADDING',  (0,0), (-1,-1), 10),
+        ('RIGHTPADDING', (0,0), (-1,-1), 10),
+        ('TOPPADDING',   (0,0), (-1,-1), 8),
+        ('BOTTOMPADDING',(0,0), (-1,-1), 8),
+    ]))
+    story.append(info)
+    story.append(Spacer(1, 0.6*cm))
+
+    # ── Prescription title ────────────────────────────────────────────────────
+    story.append(Paragraph('&#8478;  Prescription', ParagraphStyle(
+        'Rx', fontSize=17, textColor=PRIMARY,
+        fontName='Helvetica-Bold', spaceAfter=12,
+    )))
+
+    # ── Medicines ─────────────────────────────────────────────────────────────
+    med_style = ParagraphStyle('Med', parent=styles['Normal'], fontSize=12, leftIndent=8, spaceAfter=10)
+    for i, med in enumerate(medicines, 1):
+        story.append(Paragraph(f'<b>{i}.</b>  {med.get("description", "")}', med_style))
+
+    story.append(Spacer(1, 0.4*cm))
+    story.append(HRFlowable(width='100%', thickness=1, color=BORDER, spaceAfter=10))
+
+    # ── Discount ──────────────────────────────────────────────────────────────
+    if discount is not None:
+        story.append(Paragraph(
+            f'<b>Discount:</b>  {discount}',
+            ParagraphStyle('D', parent=styles['Normal'], fontSize=12),
+        ))
+
+    doc.build(story)
+    buffer.seek(0)
+    return buffer.getvalue()
+
+
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+def api_reservation_prescription(request, pk):
+    from accounts.models import Doctor, Configuration
+    from django.core.files.base import ContentFile
+    from datetime import datetime
+
+    try:
+        reservation = Reservation.objects.select_related('patient', 'branch').get(pk=pk)
+    except Reservation.DoesNotExist:
+        return Response({'error': 'Reservation not found.'}, status=status.HTTP_404_NOT_FOUND)
+
+    doctor_id      = request.data.get('doctor_id')
+    patient_id     = request.data.get('patient_id')
+    is_examination = bool(request.data.get('is_examination', False))
+    discount       = request.data.get('discount')
+    new_status     = request.data.get('status')
+    medicines      = request.data.get('medicines', [])
+
+    try:
+        doctor = Doctor.objects.select_related('user').get(user__pk=doctor_id)
+    except Doctor.DoesNotExist:
+        return Response({'error': 'Doctor not found.'}, status=status.HTTP_404_NOT_FOUND)
+
+    try:
+        patient = Patient.objects.get(pk=patient_id)
+    except Patient.DoesNotExist:
+        return Response({'error': 'Patient not found.'}, status=status.HTTP_404_NOT_FOUND)
+
+    # Save is_examination, discount and status on the reservation
+    reservation.is_examination = is_examination
+    if discount is not None:
+        reservation.discount = discount
+    update_fields = ['is_examination', 'discount']
+    if new_status and new_status in [s[0] for s in Reservation.Status.choices]:
+        reservation.status = new_status
+        update_fields.append('status')
+    reservation.save(update_fields=update_fields)
+
+    # Fetch clinic config
+    config      = Configuration.objects.first()
+    clinic_name = config.clinic_name if config else ''
+    logo_url    = None
+    if config and config.logo:
+        try:
+            logo_url = config.logo.url
+        except Exception:
+            pass
+
+    # Generate PDF
+    pdf_bytes = _generate_prescription_pdf(
+        doctor_name=doctor.user.name,
+        patient_name=patient.full_name,
+        medicines=medicines,
+        is_examination=is_examination,
+        discount=discount,
+        clinic_name=clinic_name,
+        logo_url=logo_url,
+    )
+
+    # Save as reservation attachment (auto-uploads to Cloudinary)
+    timestamp  = datetime.now().strftime('%Y%m%d_%H%M%S')
+    attachment = ReservationAttachment(reservation=reservation, uploaded_by=request.user)
+    attachment.file.save(
+        f'prescription_{pk}_{timestamp}.pdf',
+        ContentFile(pdf_bytes),
+        save=True,
+    )
+
+    return Response({
+        'pdf_url':       attachment.file.url,
+        'attachment_id': attachment.pk,
+    }, status=status.HTTP_201_CREATED)
+
+
 # ─── Reservation Summary ──────────────────────────────────────────────────────
 
 @api_view(['GET'])

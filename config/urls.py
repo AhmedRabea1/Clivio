@@ -30,7 +30,7 @@ from appointments.api_views import (
     api_public_book_reservation, api_public_slots, api_public_availability,
     api_patients, api_patient_detail, api_reservations, api_reservation_detail,
     api_reservation_attachments, api_reservation_attachment_detail,
-    api_reservation_summary,
+    api_reservation_summary, api_reservation_prescription,
 )
 
 api_urlpatterns = [
@@ -104,6 +104,7 @@ api_urlpatterns = [
     path('reservations/<int:pk>/attachments',           api_reservation_attachments,        name='api_reservation_attachments'),
     path('attachments/<int:pk>',                        api_reservation_attachment_detail,  name='api_reservation_attachment_detail'),
     path('reservation-summary',                         api_reservation_summary,            name='api_reservation_summary'),
+    path('reservations/<int:pk>/prescription',          api_reservation_prescription,       name='api_reservation_prescription'),
 
     # Branches
     path('branches',                      api_branches,       name='api_branches'),
