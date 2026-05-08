@@ -434,6 +434,9 @@ def api_reservation_attachments(request, pk):
     if 'file' not in request.FILES:
         return Response({'error': 'No file provided.'}, status=status.HTTP_400_BAD_REQUEST)
 
+    if request.FILES['file'].size > 10 * 1024 * 1024:
+        return Response({'error': 'File size must not exceed 10 MB.'}, status=status.HTTP_400_BAD_REQUEST)
+
     attachment = ReservationAttachment.objects.create(
         reservation=reservation,
         file=request.FILES['file'],
