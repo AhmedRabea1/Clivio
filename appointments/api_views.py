@@ -611,13 +611,14 @@ def api_reservation_prescription(request, pk):
 
     # Upload PDF to Cloudinary as raw file so the URL opens correctly
     import cloudinary.uploader
-    timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
-    result    = cloudinary.uploader.upload(
-        pdf_bytes,
+    import base64
+    timestamp  = datetime.now().strftime('%Y%m%d_%H%M%S')
+    b64_pdf    = 'data:application/pdf;base64,' + base64.b64encode(pdf_bytes).decode('utf-8')
+    result     = cloudinary.uploader.upload(
+        b64_pdf,
         resource_type='raw',
         folder='prescriptions',
-        public_id=f'prescription_{pk}_{timestamp}',
-        format='pdf',
+        public_id=f'prescription_{pk}_{timestamp}.pdf',
     )
     pdf_url = result['secure_url']
 
