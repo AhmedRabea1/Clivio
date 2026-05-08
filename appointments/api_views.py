@@ -610,8 +610,31 @@ def api_reservation_prescription(request, pk):
     )
 
     from django.http import HttpResponse
+    import cloudinary.uploader, tempfile, os
     timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
     filename  = f'prescription_{pk}_{timestamp}.pdf'
+
+    # Save as attachment (best effort — download still works if this fails)
+    try:
+        with tempfile.NamedTemporaryFile(suffix='.pdf', delete=False) as tmp:
+            tmp.write(pdf_bytes)
+            tmp_path = tmp.name
+        try:
+            result = cloudinary.uploader.upload(
+                tmp_path,
+                resource_type='raw',
+                folder='prescriptions',
+                public_id=filename,
+            )
+            ReservationAttachment.objects.create(
+                reservation=reservation,
+                uploaded_by=request.user,
+                url=result['secure_url'],
+            )
+        finally:
+            os.unlink(tmp_path)
+    except Exception:
+        pass
 
     response = HttpResponse(pdf_bytes, content_type='application/pdf')
     response['Content-Disposition'] = f'attachment; filename="{filename}"'
