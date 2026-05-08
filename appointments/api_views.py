@@ -625,6 +625,8 @@ def api_reservation_prescription(request, pk):
                 resource_type='raw',
                 folder='prescriptions',
                 public_id=filename,
+                type='upload',
+                access_mode='public',
             )
             ReservationAttachment.objects.create(
                 reservation=reservation,
