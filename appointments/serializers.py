@@ -13,6 +13,8 @@ class ReservationAttachmentSerializer(serializers.ModelSerializer):
         extra_kwargs = {'file': {'write_only': True}}
 
     def get_file_url(self, obj):
+        if obj.url:
+            return obj.url
         request = self.context.get('request')
         if obj.file and request:
             return request.build_absolute_uri(obj.file.url)

@@ -567,7 +567,6 @@ def _generate_prescription_pdf(doctor_name, patient_name, medicines, is_examinat
 @permission_classes([IsAuthenticated])
 def api_reservation_prescription(request, pk):
     from accounts.models import Doctor, Configuration
-    from django.core.files.base import ContentFile
     from datetime import datetime
 
     try:
@@ -623,17 +622,27 @@ def api_reservation_prescription(request, pk):
         logo_url=logo_url,
     )
 
-    # Save as reservation attachment (auto-uploads to Cloudinary)
-    timestamp  = datetime.now().strftime('%Y%m%d_%H%M%S')
-    attachment = ReservationAttachment(reservation=reservation, uploaded_by=request.user)
-    attachment.file.save(
-        f'prescription_{pk}_{timestamp}.pdf',
-        ContentFile(pdf_bytes),
-        save=True,
+    # Upload PDF to Cloudinary as raw file so the URL opens correctly
+    import cloudinary.uploader
+    timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+    result    = cloudinary.uploader.upload(
+        pdf_bytes,
+        resource_type='raw',
+        folder='prescriptions',
+        public_id=f'prescription_{pk}_{timestamp}',
+        format='pdf',
+    )
+    pdf_url = result['secure_url']
+
+    # Save as reservation attachment
+    attachment = ReservationAttachment.objects.create(
+        reservation=reservation,
+        uploaded_by=request.user,
+        url=pdf_url,
     )
 
     return Response({
-        'pdf_url':       attachment.file.url,
+        'pdf_url':       pdf_url,
         'attachment_id': attachment.pk,
     }, status=status.HTTP_201_CREATED)
 

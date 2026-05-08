@@ -85,7 +85,8 @@ class ReservationAttachment(models.Model):
         on_delete=models.CASCADE,
         related_name='attachments',
     )
-    file = models.FileField(upload_to='reservation_attachments/')
+    file = models.FileField(upload_to='reservation_attachments/', blank=True)
+    url  = models.URLField(blank=True)
     uploaded_by = models.ForeignKey(
         settings.AUTH_USER_MODEL,
         on_delete=models.SET_NULL,
