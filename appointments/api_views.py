@@ -685,6 +685,7 @@ def api_reservation_summary(request):
             'slot':          reservation.slot.strftime('%H:%M') if reservation.slot else None,
             'doctor_name':   reservation.doctor.user.name if reservation.doctor else None,
             'branch_name':   reservation.branch.name,
+            'discount':      reservation.discount,
         },
         'attachments': ReservationAttachmentSerializer(attachments, many=True, context={'request': request}).data,
     })
