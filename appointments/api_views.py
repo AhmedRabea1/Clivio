@@ -7,10 +7,11 @@ from rest_framework.pagination import PageNumberPagination
 from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
 
-from .models import Reservation, Patient
+from .models import Reservation, Patient, ReservationAttachment
 from .serializers import (
     PublicReservationCreateSerializer, ReservationSerializer, ReservationUpdateSerializer,
     PatientSerializer, PatientCreateSerializer, ReservationCreateSerializer,
+    ReservationAttachmentSerializer,
 )
 
 
@@ -414,3 +415,44 @@ def api_public_availability(request):
         'date':     date_out,
         'branches': branches_data,
     })
+
+
+# ─── Reservation Attachments ──────────────────────────────────────────────────
+
+@api_view(['GET', 'POST'])
+@permission_classes([IsAuthenticated])
+def api_reservation_attachments(request, pk):
+    try:
+        reservation = Reservation.objects.get(pk=pk)
+    except Reservation.DoesNotExist:
+        return Response({'error': 'Reservation not found.'}, status=status.HTTP_404_NOT_FOUND)
+
+    if request.method == 'GET':
+        attachments = reservation.attachments.all()
+        return Response(ReservationAttachmentSerializer(attachments, many=True, context={'request': request}).data)
+
+    if 'file' not in request.FILES:
+        return Response({'error': 'No file provided.'}, status=status.HTTP_400_BAD_REQUEST)
+
+    attachment = ReservationAttachment.objects.create(
+        reservation=reservation,
+        file=request.FILES['file'],
+        uploaded_by=request.user,
+    )
+    return Response(
+        ReservationAttachmentSerializer(attachment, context={'request': request}).data,
+        status=status.HTTP_201_CREATED,
+    )
+
+
+@api_view(['DELETE'])
+@permission_classes([IsAuthenticated])
+def api_reservation_attachment_detail(request, pk):
+    try:
+        attachment = ReservationAttachment.objects.get(pk=pk)
+    except ReservationAttachment.DoesNotExist:
+        return Response({'error': 'Attachment not found.'}, status=status.HTTP_404_NOT_FOUND)
+
+    attachment.file.delete(save=False)
+    attachment.delete()
+    return Response(status=status.HTTP_204_NO_CONTENT)

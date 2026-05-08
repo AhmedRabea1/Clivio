@@ -1,5 +1,21 @@
 from rest_framework import serializers
-from .models import Patient, Reservation
+from .models import Patient, Reservation, ReservationAttachment
+
+
+class ReservationAttachmentSerializer(serializers.ModelSerializer):
+    file_url       = serializers.SerializerMethodField()
+    uploaded_by_name = serializers.CharField(source='uploaded_by.name', read_only=True, default=None)
+
+    class Meta:
+        model  = ReservationAttachment
+        fields = ('id', 'file', 'file_url', 'uploaded_by_name', 'created_at')
+        extra_kwargs = {'file': {'write_only': True}}
+
+    def get_file_url(self, obj):
+        request = self.context.get('request')
+        if obj.file and request:
+            return request.build_absolute_uri(obj.file.url)
+        return obj.file.url if obj.file else None
 
 
 class PatientFamilyMemberSerializer(serializers.ModelSerializer):

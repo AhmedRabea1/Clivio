@@ -80,6 +80,28 @@ class Reservation(models.Model):
         return f'{self.patient.full_name} — {self.date_of_visit}'
 
 
+class ReservationAttachment(models.Model):
+    reservation = models.ForeignKey(
+        Reservation,
+        on_delete=models.CASCADE,
+        related_name='attachments',
+    )
+    file = models.FileField(upload_to='reservation_attachments/')
+    uploaded_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True, blank=True,
+        related_name='uploaded_attachments',
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['-created_at']
+
+    def __str__(self):
+        return f'Attachment for {self.reservation} — {self.pk}'
+
+
 class AuditLog(models.Model):
     user = models.ForeignKey(
         settings.AUTH_USER_MODEL,
