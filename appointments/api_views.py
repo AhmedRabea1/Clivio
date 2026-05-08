@@ -465,3 +465,50 @@ def api_reservation_attachment_detail(request, pk):
     attachment.file.delete(save=False)
     attachment.delete()
     return Response(status=status.HTTP_204_NO_CONTENT)
+
+
+# ─── Reservation Summary ──────────────────────────────────────────────────────
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def api_reservation_summary(request):
+    from datetime import date
+    patient_id     = request.query_params.get('patient_id', '').strip()
+    reservation_id = request.query_params.get('reservation_id', '').strip()
+
+    if not patient_id or not reservation_id:
+        return Response({'error': 'patient_id and reservation_id are required.'}, status=status.HTTP_400_BAD_REQUEST)
+
+    try:
+        patient = Patient.objects.get(pk=patient_id)
+    except Patient.DoesNotExist:
+        return Response({'error': 'Patient not found.'}, status=status.HTTP_404_NOT_FOUND)
+
+    try:
+        reservation = Reservation.objects.select_related('branch', 'doctor__user').get(pk=reservation_id, patient=patient)
+    except Reservation.DoesNotExist:
+        return Response({'error': 'Reservation not found.'}, status=status.HTTP_404_NOT_FOUND)
+
+    today = date.today()
+    dob   = patient.date_of_birth
+    age   = today.year - dob.year - ((today.month, today.day) < (dob.month, dob.day))
+
+    attachments = reservation.attachments.all()
+
+    return Response({
+        'patient': {
+            'id':            patient.id,
+            'name':          patient.full_name,
+            'age':           age,
+            'medical_notes': patient.medical_notes or None,
+        },
+        'reservation': {
+            'id':            reservation.id,
+            'status':        reservation.status,
+            'date_of_visit': reservation.date_of_visit,
+            'slot':          reservation.slot.strftime('%H:%M') if reservation.slot else None,
+            'doctor_name':   reservation.doctor.user.name if reservation.doctor else None,
+            'branch_name':   reservation.branch.name,
+        },
+        'attachments': ReservationAttachmentSerializer(attachments, many=True, context={'request': request}).data,
+    })

@@ -58,7 +58,7 @@ class ReservationSerializer(serializers.ModelSerializer):
     class Meta:
         model = Reservation
         fields = (
-            'id', 'patient_name', 'branch_name',
+            'id', 'patient_id', 'patient_name', 'branch_name',
             'doctor_name', 'date_of_visit', 'slot', 'status', 'created_at',
         )
 
