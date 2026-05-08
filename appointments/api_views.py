@@ -609,30 +609,13 @@ def api_reservation_prescription(request, pk):
         logo_url=logo_url,
     )
 
-    # Upload PDF to Cloudinary as raw file so the URL opens correctly
-    import cloudinary.uploader
-    import base64
-    timestamp  = datetime.now().strftime('%Y%m%d_%H%M%S')
-    b64_pdf    = 'data:application/pdf;base64,' + base64.b64encode(pdf_bytes).decode('utf-8')
-    result     = cloudinary.uploader.upload(
-        b64_pdf,
-        resource_type='raw',
-        folder='prescriptions',
-        public_id=f'prescription_{pk}_{timestamp}.pdf',
-    )
-    pdf_url = result['secure_url']
+    from django.http import HttpResponse
+    timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+    filename  = f'prescription_{pk}_{timestamp}.pdf'
 
-    # Save as reservation attachment
-    attachment = ReservationAttachment.objects.create(
-        reservation=reservation,
-        uploaded_by=request.user,
-        url=pdf_url,
-    )
-
-    return Response({
-        'pdf_url':       pdf_url,
-        'attachment_id': attachment.pk,
-    }, status=status.HTTP_201_CREATED)
+    response = HttpResponse(pdf_bytes, content_type='application/pdf')
+    response['Content-Disposition'] = f'attachment; filename="{filename}"'
+    return response
 
 
 # ─── Reservation Summary ──────────────────────────────────────────────────────
