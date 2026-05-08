@@ -529,8 +529,27 @@ class AreaPackageSerializer(serializers.ModelSerializer):
 
 
 class DoctorMedicineSerializer(serializers.ModelSerializer):
+    doctor_id   = serializers.IntegerField(write_only=True)
     doctor_name = serializers.CharField(source='doctor.user.name', read_only=True)
 
     class Meta:
         model  = DoctorMedicine
-        fields = ('id', 'doctor', 'doctor_name', 'name', 'concentration')
+        fields = ('id', 'doctor_id', 'doctor_name', 'name', 'concentration')
+
+    def validate_doctor_id(self, value):
+        try:
+            return Doctor.objects.get(user__pk=value)
+        except Doctor.DoesNotExist:
+            raise serializers.ValidationError('Doctor not found.')
+
+    def create(self, validated_data):
+        doctor = validated_data.pop('doctor_id')
+        return DoctorMedicine.objects.create(doctor=doctor, **validated_data)
+
+    def update(self, instance, validated_data):
+        if 'doctor_id' in validated_data:
+            instance.doctor = validated_data.pop('doctor_id')
+        instance.name          = validated_data.get('name', instance.name)
+        instance.concentration = validated_data.get('concentration', instance.concentration)
+        instance.save()
+        return instance
