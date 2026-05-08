@@ -131,6 +131,7 @@ def api_reservations(request):
         patient_name  = request.query_params.get('patient_name', '').strip()
         branch_name   = request.query_params.get('branch_name', '').strip()
         doctor_name   = request.query_params.get('doctor_name', '').strip()
+        doctor_id     = request.query_params.get('doctor_id', '').strip()
         date_of_visit = request.query_params.get('date_of_visit', '').strip()
         res_status    = request.query_params.get('status', '').strip()
 
@@ -143,6 +144,8 @@ def api_reservations(request):
             qs = qs.filter(branch__name__icontains=branch_name)
         if doctor_name:
             qs = qs.filter(doctor__user__name__icontains=doctor_name)
+        if doctor_id:
+            qs = qs.filter(doctor__user__pk=doctor_id)
         if date_of_visit:
             qs = qs.filter(date_of_visit=date_of_visit)
         if res_status:
