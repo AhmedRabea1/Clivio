@@ -36,13 +36,16 @@ def api_patients(request):
     """
     if request.method == 'GET':
         qs = Patient.objects.all().order_by('-created_at')
-        search = request.query_params.get('search', '').strip()
+        search    = request.query_params.get('search', '').strip()
+        doctor_id = request.query_params.get('doctor_id', '').strip()
         if search:
             qs = qs.filter(
                 Q(first_name__icontains=search) |
                 Q(last_name__icontains=search) |
                 Q(mobile_number__icontains=search)
             )
+        if doctor_id:
+            qs = qs.filter(reservations__doctor__user__pk=doctor_id).distinct()
         paginator = PageNumberPagination()
         paginator.page_size = 10
         page = paginator.paginate_queryset(qs, request)
