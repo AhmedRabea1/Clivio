@@ -116,7 +116,9 @@ class Doctor(models.Model):
         on_delete=models.CASCADE,
         related_name='doctor_profile',
     )
-    specialty = models.CharField(max_length=100, blank=True)
+    specialty                = models.CharField(max_length=100, blank=True)
+    price_per_examination    = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True)
+    price_per_consultation   = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True)
 
     class Meta:
         ordering = ['-user__date_joined']

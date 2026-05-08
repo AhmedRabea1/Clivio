@@ -351,6 +351,7 @@ class DoctorSerializer(serializers.ModelSerializer):
         model = Doctor
         fields = (
             'id', 'name', 'email', 'phone', 'specialty',
+            'price_per_examination', 'price_per_consultation',
             'clinic', 'clinic_name', 'is_active', 'date_joined',
             'assigned_branches', 'branch_count',
         )
@@ -381,7 +382,9 @@ class DoctorCreateSerializer(serializers.Serializer):
     name = serializers.CharField()
     email = serializers.EmailField()
     phone = serializers.CharField(max_length=30)
-    specialty = serializers.CharField(required=False, allow_blank=True, default='')
+    specialty               = serializers.CharField(required=False, allow_blank=True, default='')
+    price_per_examination   = serializers.DecimalField(max_digits=10, decimal_places=2, required=False, allow_null=True)
+    price_per_consultation  = serializers.DecimalField(max_digits=10, decimal_places=2, required=False, allow_null=True)
     password = serializers.CharField(write_only=True, min_length=6)
     branch_schedules = BranchScheduleSerializer(many=True, required=False)
 
@@ -429,6 +432,8 @@ class DoctorCreateSerializer(serializers.Serializer):
         doctor = Doctor.objects.create(
             user=user,
             specialty=validated_data.get('specialty', ''),
+            price_per_examination=validated_data.get('price_per_examination'),
+            price_per_consultation=validated_data.get('price_per_consultation'),
         )
         self._save_schedules(user, branch_schedules, request)
         return doctor
@@ -447,6 +452,10 @@ class DoctorCreateSerializer(serializers.Serializer):
             user.email = validated_data['email'].lower()
         user.save()
         instance.specialty = validated_data.get('specialty', instance.specialty)
+        if 'price_per_examination' in validated_data:
+            instance.price_per_examination = validated_data['price_per_examination']
+        if 'price_per_consultation' in validated_data:
+            instance.price_per_consultation = validated_data['price_per_consultation']
         instance.save()
         if branch_schedules is not None:
             self._save_schedules(user, branch_schedules, request)
