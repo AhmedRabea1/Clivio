@@ -13,14 +13,14 @@ from rest_framework.response import Response
 from rest_framework_simplejwt.tokens import RefreshToken
 from rest_framework_simplejwt.exceptions import TokenError
 
-from .models import User, Configuration, Doctor, AssistantRole, Assistant, Service, Product, Machine, PulsePackage, AreaPackage
+from .models import User, Configuration, Doctor, AssistantRole, Assistant, Service, Product, Machine, PulsePackage, AreaPackage, DoctorMedicine
 from .serializers import (
     LoginSerializer, UserSerializer,
     UserCreateSerializer, UserUpdateBranchesSerializer,
     ConfigurationSerializer, DoctorSerializer, DoctorCreateSerializer,
     AssistantRoleSerializer, AssistantSerializer, AssistantCreateSerializer,
     ServiceSerializer, ProductSerializer, MachineSerializer,
-    PulsePackageSerializer, AreaPackageSerializer,
+    PulsePackageSerializer, AreaPackageSerializer, DoctorMedicineSerializer,
 )
 from branches.models import Branch, UserBranchAssignment
 
@@ -790,4 +790,47 @@ def api_area_package_detail(request, pk):
     if serializer.is_valid():
         serializer.save()
         return Response(AreaPackageSerializer(pkg).data)
+    return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+
+# ─── Doctor Medicines ──────────────────────────────────────────────────────────
+
+@api_view(['GET', 'POST'])
+@permission_classes([IsAuthenticated])
+def api_doctor_medicines(request):
+    if request.method == 'GET':
+        qs = DoctorMedicine.objects.select_related('doctor__user').all()
+        doctor_id = request.query_params.get('doctor_id', '').strip()
+        if doctor_id:
+            qs = qs.filter(doctor__user__pk=doctor_id)
+        paginator = PageNumberPagination()
+        paginator.page_size = 10
+        page = paginator.paginate_queryset(qs, request)
+        return paginator.get_paginated_response(DoctorMedicineSerializer(page, many=True).data)
+    serializer = DoctorMedicineSerializer(data=request.data)
+    if serializer.is_valid():
+        medicine = serializer.save()
+        return Response(DoctorMedicineSerializer(medicine).data, status=status.HTTP_201_CREATED)
+    return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+
+@api_view(['GET', 'PATCH', 'DELETE'])
+@permission_classes([IsAuthenticated])
+def api_doctor_medicine_detail(request, pk):
+    try:
+        medicine = DoctorMedicine.objects.select_related('doctor__user').get(pk=pk)
+    except DoctorMedicine.DoesNotExist:
+        return Response({'error': 'Medicine not found.'}, status=status.HTTP_404_NOT_FOUND)
+
+    if request.method == 'GET':
+        return Response(DoctorMedicineSerializer(medicine).data)
+
+    if request.method == 'DELETE':
+        medicine.delete()
+        return Response(status=status.HTTP_204_NO_CONTENT)
+
+    serializer = DoctorMedicineSerializer(medicine, data=request.data, partial=True)
+    if serializer.is_valid():
+        serializer.save()
+        return Response(DoctorMedicineSerializer(medicine).data)
     return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)

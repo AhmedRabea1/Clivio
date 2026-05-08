@@ -20,6 +20,7 @@ from accounts.api_views import (
     api_machines, api_machine_detail,
     api_pulse_packages, api_pulse_package_detail,
     api_area_packages, api_area_package_detail,
+    api_doctor_medicines, api_doctor_medicine_detail,
 )
 from branches.api_views import (
     api_branches, api_branch_detail, api_branch_status, api_branch_users,
@@ -79,6 +80,10 @@ api_urlpatterns = [
     # Area Packages
     path('area-packages',            api_area_packages,         name='api_area_packages'),
     path('area-packages/<int:pk>',   api_area_package_detail,   name='api_area_package_detail'),
+
+    # Doctor Medicines
+    path('doctor-medicines',           api_doctor_medicines,         name='api_doctor_medicines'),
+    path('doctor-medicines/<int:pk>',  api_doctor_medicine_detail,   name='api_doctor_medicine_detail'),
 
     # Configuration
     path('configuration',        api_configuration,        name='api_configuration'),

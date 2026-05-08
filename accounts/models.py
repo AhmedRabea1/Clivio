@@ -127,6 +127,18 @@ class Doctor(models.Model):
         return f'Dr. {self.user.name}'
 
 
+class DoctorMedicine(models.Model):
+    doctor        = models.ForeignKey(Doctor, on_delete=models.CASCADE, related_name='medicines')
+    name          = models.CharField(max_length=255)
+    concentration = models.CharField(max_length=100)
+
+    class Meta:
+        ordering = ['name']
+
+    def __str__(self):
+        return f'{self.name} {self.concentration}'
+
+
 class UserManager(BaseUserManager):
     def create_user(self, email, password=None, **extra_fields):
         if not email:

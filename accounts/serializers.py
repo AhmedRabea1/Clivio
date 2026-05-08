@@ -1,5 +1,5 @@
 from rest_framework import serializers
-from .models import User, Clinic, Configuration, Doctor, AssistantRole, Assistant, Service, Product, Machine, PulsePackage, AreaPackage
+from .models import User, Clinic, Configuration, Doctor, AssistantRole, Assistant, Service, Product, Machine, PulsePackage, AreaPackage, DoctorMedicine
 
 
 class ClinicSerializer(serializers.ModelSerializer):
@@ -526,3 +526,11 @@ class AreaPackageSerializer(serializers.ModelSerializer):
         model  = AreaPackage
         fields = ('id', 'name', 'price', 'description')
         extra_kwargs = {'description': {'required': False}}
+
+
+class DoctorMedicineSerializer(serializers.ModelSerializer):
+    doctor_name = serializers.CharField(source='doctor.user.name', read_only=True)
+
+    class Meta:
+        model  = DoctorMedicine
+        fields = ('id', 'doctor', 'doctor_name', 'name', 'concentration')

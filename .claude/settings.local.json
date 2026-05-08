@@ -36,7 +36,8 @@
       "Bash(python manage.py makemigrations accounts --name add_machine_maintenance_date)",
       "Bash(python manage.py migrate accounts 0026)",
       "Bash(python manage.py makemigrations accounts --name add_doctor_prices)",
-      "Bash(python manage.py makemigrations appointments --name reservation_attachment)"
+      "Bash(python manage.py makemigrations appointments --name reservation_attachment)",
+      "Bash(python manage.py makemigrations accounts --name add_doctor_medicine)"
     ]
   }
 }
