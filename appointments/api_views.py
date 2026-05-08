@@ -507,13 +507,10 @@ def _generate_prescription_pdf(doctor_name, patient_name, medicines, is_examinat
             pass
 
     # ── Brand header ──────────────────────────────────────────────────────────
-    story.append(Paragraph('CLIVIO', ParagraphStyle(
-        'Brand', fontSize=32, textColor=PRIMARY,
-        fontName='Helvetica-Bold', alignment=TA_CENTER, spaceAfter=2,
-    )))
     if clinic_name:
         story.append(Paragraph(clinic_name, ParagraphStyle(
-            'Sub', fontSize=13, textColor=GRAY, alignment=TA_CENTER, spaceAfter=6,
+            'Sub', fontSize=15, textColor=GRAY, fontName='Helvetica-Bold',
+            alignment=TA_CENTER, spaceAfter=6,
         )))
     story.append(HRFlowable(width='100%', thickness=2, color=PRIMARY, spaceAfter=14))
 
@@ -547,16 +544,6 @@ def _generate_prescription_pdf(doctor_name, patient_name, medicines, is_examinat
     med_style = ParagraphStyle('Med', parent=styles['Normal'], fontSize=12, leftIndent=8, spaceAfter=10)
     for i, med in enumerate(medicines, 1):
         story.append(Paragraph(f'<b>{i}.</b>  {med.get("description", "")}', med_style))
-
-    story.append(Spacer(1, 0.4*cm))
-    story.append(HRFlowable(width='100%', thickness=1, color=BORDER, spaceAfter=10))
-
-    # ── Discount ──────────────────────────────────────────────────────────────
-    if discount is not None:
-        story.append(Paragraph(
-            f'<b>Discount:</b>  {discount}',
-            ParagraphStyle('D', parent=styles['Normal'], fontSize=12),
-        ))
 
     doc.build(story)
     buffer.seek(0)
