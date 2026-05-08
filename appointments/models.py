@@ -47,6 +47,7 @@ class Reservation(models.Model):
         CONFIRMED = 'confirmed', 'Confirmed'
         ARRIVED   = 'arrived',   'Arrived'
         CANCELED  = 'canceled',  'Canceled'
+        FINISHED  = 'finished',  'Finished'
 
     patient = models.ForeignKey(
         Patient,

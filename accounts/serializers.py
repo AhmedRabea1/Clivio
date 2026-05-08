@@ -528,13 +528,15 @@ class AreaPackageSerializer(serializers.ModelSerializer):
         extra_kwargs = {'description': {'required': False}}
 
 
-class DoctorMedicineSerializer(serializers.ModelSerializer):
-    doctor_id   = serializers.IntegerField(write_only=True)
-    doctor_name = serializers.CharField(source='doctor.user.name', read_only=True)
+class DoctorMedicineSerializer(serializers.Serializer):
+    id            = serializers.IntegerField(read_only=True)
+    doctor_id     = serializers.IntegerField()
+    doctor_name   = serializers.SerializerMethodField()
+    name          = serializers.CharField()
+    concentration = serializers.CharField()
 
-    class Meta:
-        model  = DoctorMedicine
-        fields = ('id', 'doctor_id', 'doctor_name', 'name', 'concentration')
+    def get_doctor_name(self, obj):
+        return obj.doctor.user.name if obj.doctor else None
 
     def validate_doctor_id(self, value):
         try:
