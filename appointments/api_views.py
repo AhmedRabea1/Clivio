@@ -698,3 +698,57 @@ def api_reservation_summary(request):
         },
         'attachments': ReservationAttachmentSerializer(attachments, many=True, context={'request': request}).data,
     })
+
+
+# ─── Patient Profile ──────────────────────────────────────────────────────────
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def api_patient_profile(request):
+    from datetime import date
+    patient_id = request.query_params.get('patient_id', '').strip()
+    doctor_id  = request.query_params.get('doctor_id', '').strip()
+
+    if not patient_id or not doctor_id:
+        return Response({'error': 'patient_id and doctor_id are required.'}, status=status.HTTP_400_BAD_REQUEST)
+
+    try:
+        patient = Patient.objects.get(pk=patient_id)
+    except Patient.DoesNotExist:
+        return Response({'error': 'Patient not found.'}, status=status.HTTP_404_NOT_FOUND)
+
+    today = date.today()
+    dob   = patient.date_of_birth
+    age   = today.year - dob.year - ((today.month, today.day) < (dob.month, dob.day))
+
+    # All appointments for this patient with this doctor
+    reservations = Reservation.objects.select_related('branch', 'doctor__user').filter(
+        patient=patient, doctor__user__pk=doctor_id
+    ).order_by('-date_of_visit')
+
+    # All attachments across all reservations of this patient
+    attachments = ReservationAttachment.objects.filter(
+        reservation__patient=patient
+    ).order_by('-created_at')
+
+    return Response({
+        'patient': {
+            'id':     patient.id,
+            'name':   patient.full_name,
+            'age':    age,
+            'mobile': patient.mobile_number,
+        },
+        'appointments': [
+            {
+                'id':             r.id,
+                'date_of_visit':  r.date_of_visit,
+                'slot':           r.slot.strftime('%H:%M') if r.slot else None,
+                'status':         r.status,
+                'branch_name':    r.branch.name,
+                'is_examination': r.is_examination,
+                'discount':       r.discount,
+            }
+            for r in reservations
+        ],
+        'attachments': ReservationAttachmentSerializer(attachments, many=True, context={'request': request}).data,
+    })
