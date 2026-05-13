@@ -149,6 +149,9 @@ def api_reservations(request):
             qs = qs.filter(doctor__user__name__icontains=doctor_name)
         if doctor_id:
             qs = qs.filter(doctor__user__pk=doctor_id)
+        patient_id = request.query_params.get('patient_id', '').strip()
+        if patient_id:
+            qs = qs.filter(patient__pk=patient_id)
         if date_of_visit:
             qs = qs.filter(date_of_visit=date_of_visit)
         if res_status:
@@ -721,32 +724,10 @@ def api_patient_profile(request):
     dob   = patient.date_of_birth
     age   = today.year - dob.year - ((today.month, today.day) < (dob.month, dob.day))
 
-    # All appointments for this patient with this doctor
-    reservations = Reservation.objects.select_related('branch', 'doctor__user').filter(
-        patient=patient, doctor__user__pk=doctor_id
-    ).order_by('-date_of_visit')
-
-    paginator = PageNumberPagination()
-    paginator.page_size = 5
-    page = paginator.paginate_queryset(reservations, request)
-
     # All attachments across all reservations of this patient
     attachments = ReservationAttachment.objects.filter(
         reservation__patient=patient
     ).order_by('-created_at')
-
-    appointments_data = [
-        {
-            'id':             r.id,
-            'date_of_visit':  r.date_of_visit,
-            'slot':           r.slot.strftime('%H:%M') if r.slot else None,
-            'status':         r.status,
-            'branch_name':    r.branch.name,
-            'is_examination': r.is_examination,
-            'discount':       r.discount,
-        }
-        for r in page
-    ]
 
     return Response({
         'patient': {
@@ -754,12 +735,6 @@ def api_patient_profile(request):
             'name':   patient.full_name,
             'age':    age,
             'mobile': patient.mobile_number,
-        },
-        'appointments': {
-            'count':    paginator.page.paginator.count,
-            'next':     paginator.get_next_link(),
-            'previous': paginator.get_previous_link(),
-            'results':  appointments_data,
         },
         'attachments': ReservationAttachmentSerializer(attachments, many=True, context={'request': request}).data,
     })
