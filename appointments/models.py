@@ -87,6 +87,7 @@ class ReservationAttachment(models.Model):
     )
     file = models.FileField(upload_to='reservation_attachments/', blank=True)
     url  = models.URLField(blank=True)
+    name = models.CharField(max_length=255, blank=True)
     uploaded_by = models.ForeignKey(
         settings.AUTH_USER_MODEL,
         on_delete=models.SET_NULL,

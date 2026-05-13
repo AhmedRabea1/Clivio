@@ -568,6 +568,9 @@ def api_reservation_prescription(request, pk):
     new_status     = request.data.get('status')
     medicines      = request.data.get('medicines', [])
 
+    if not medicines:
+        return Response({'error': 'Medicines list cannot be empty.'}, status=status.HTTP_400_BAD_REQUEST)
+
     try:
         doctor = Doctor.objects.select_related('user').get(user__pk=doctor_id)
     except Doctor.DoesNotExist:
@@ -611,7 +614,7 @@ def api_reservation_prescription(request, pk):
 
     from django.http import HttpResponse
     import cloudinary.uploader, tempfile, os
-    timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+    timestamp = datetime.now().strftime('%Y%m%d')
     filename  = f'prescription_{pk}_{timestamp}.pdf'
 
     # Save as attachment (best effort — download still works if this fails)
@@ -632,6 +635,7 @@ def api_reservation_prescription(request, pk):
                 reservation=reservation,
                 uploaded_by=request.user,
                 url=result['secure_url'],
+                name=f'Prescription_{timestamp}',
             )
         finally:
             os.unlink(tmp_path)

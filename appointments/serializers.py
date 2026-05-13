@@ -21,6 +21,8 @@ class ReservationAttachmentSerializer(serializers.ModelSerializer):
         return obj.file.url if obj.file else None
 
     def get_file_name(self, obj):
+        if obj.name:
+            return obj.name
         if obj.file:
             return obj.file.name.split('/')[-1]
         return None
