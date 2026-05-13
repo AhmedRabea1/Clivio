@@ -726,10 +726,27 @@ def api_patient_profile(request):
         patient=patient, doctor__user__pk=doctor_id
     ).order_by('-date_of_visit')
 
+    paginator = PageNumberPagination()
+    paginator.page_size = 5
+    page = paginator.paginate_queryset(reservations, request)
+
     # All attachments across all reservations of this patient
     attachments = ReservationAttachment.objects.filter(
         reservation__patient=patient
     ).order_by('-created_at')
+
+    appointments_data = [
+        {
+            'id':             r.id,
+            'date_of_visit':  r.date_of_visit,
+            'slot':           r.slot.strftime('%H:%M') if r.slot else None,
+            'status':         r.status,
+            'branch_name':    r.branch.name,
+            'is_examination': r.is_examination,
+            'discount':       r.discount,
+        }
+        for r in page
+    ]
 
     return Response({
         'patient': {
@@ -738,17 +755,11 @@ def api_patient_profile(request):
             'age':    age,
             'mobile': patient.mobile_number,
         },
-        'appointments': [
-            {
-                'id':             r.id,
-                'date_of_visit':  r.date_of_visit,
-                'slot':           r.slot.strftime('%H:%M') if r.slot else None,
-                'status':         r.status,
-                'branch_name':    r.branch.name,
-                'is_examination': r.is_examination,
-                'discount':       r.discount,
-            }
-            for r in reservations
-        ],
+        'appointments': {
+            'count':    paginator.page.paginator.count,
+            'next':     paginator.get_next_link(),
+            'previous': paginator.get_previous_link(),
+            'results':  appointments_data,
+        },
         'attachments': ReservationAttachmentSerializer(attachments, many=True, context={'request': request}).data,
     })
