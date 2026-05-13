@@ -688,6 +688,7 @@ def api_reservation_summary(request):
             'id':            patient.id,
             'name':          patient.full_name,
             'age':           age,
+            'mobile':        patient.mobile_number,
             'medical_notes': patient.medical_notes or None,
         },
         'reservation': {
@@ -732,10 +733,11 @@ def api_patient_profile(request):
 
     return Response({
         'patient': {
-            'id':     patient.id,
-            'name':   patient.full_name,
-            'age':    age,
-            'mobile': patient.mobile_number,
+            'id':            patient.id,
+            'name':          patient.full_name,
+            'age':           age,
+            'mobile':        patient.mobile_number,
+            'medical_notes': patient.medical_notes or None,
         },
         'attachments': ReservationAttachmentSerializer(attachments, many=True, context={'request': request}).data,
     })
