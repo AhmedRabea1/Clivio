@@ -55,14 +55,15 @@ class PatientSerializer(serializers.ModelSerializer):
 
 
 class ReservationSerializer(serializers.ModelSerializer):
-    patient_name = serializers.SerializerMethodField()
-    branch_name  = serializers.CharField(source='branch.name', read_only=True)
-    doctor_name  = serializers.CharField(source='doctor.user.name', read_only=True, default=None)
+    patient_name   = serializers.SerializerMethodField()
+    patient_mobile = serializers.CharField(source='patient.mobile_number', read_only=True)
+    branch_name    = serializers.CharField(source='branch.name', read_only=True)
+    doctor_name    = serializers.CharField(source='doctor.user.name', read_only=True, default=None)
 
     class Meta:
         model = Reservation
         fields = (
-            'id', 'patient_id', 'patient_name', 'branch_name',
+            'id', 'patient_id', 'patient_name', 'patient_mobile', 'branch_name',
             'doctor_name', 'date_of_visit', 'slot', 'status', 'created_at',
         )
 
