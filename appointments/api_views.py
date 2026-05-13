@@ -712,10 +712,9 @@ def api_reservation_summary(request):
 def api_patient_profile(request):
     from datetime import date
     patient_id = request.query_params.get('patient_id', '').strip()
-    doctor_id  = request.query_params.get('doctor_id', '').strip()
 
-    if not patient_id or not doctor_id:
-        return Response({'error': 'patient_id and doctor_id are required.'}, status=status.HTTP_400_BAD_REQUEST)
+    if not patient_id:
+        return Response({'error': 'patient_id is required.'}, status=status.HTTP_400_BAD_REQUEST)
 
     try:
         patient = Patient.objects.get(pk=patient_id)
