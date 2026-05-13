@@ -690,6 +690,7 @@ def api_reservation_summary(request):
             'doctor_name':   reservation.doctor.user.name if reservation.doctor else None,
             'branch_name':   reservation.branch.name,
             'discount':      reservation.discount,
+            'is_examination': reservation.is_examination,
         },
         'attachments': ReservationAttachmentSerializer(attachments, many=True, context={'request': request}).data,
     })
