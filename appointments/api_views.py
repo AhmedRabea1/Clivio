@@ -759,15 +759,18 @@ def api_derma_face_mappings(request):
         ).prefetch_related('zones__lines__product', 'zones__lines__machine', 'zones__service')
         return Response(DermaFaceMappingSerializer(mappings, many=True).data)
 
-    # POST
+    # POST — one zone per request
     data           = request.data
     reservation_id = data.get('reservation_id')
     patient_id     = data.get('patient_id')
     mapping_type   = data.get('mapping_type', 'face')
-    zones_data     = data.get('zones', [])
+    zone_id        = data.get('zone_id')
+    zone_label     = data.get('zone_label', '')
+    service_data   = data.get('service') or {}
+    lines_data     = data.get('lines', [])
 
-    if not reservation_id or not patient_id:
-        return Response({'error': 'reservation_id and patient_id are required.'}, status=status.HTTP_400_BAD_REQUEST)
+    if not reservation_id or not patient_id or not zone_id:
+        return Response({'error': 'reservation_id, patient_id and zone_id are required.'}, status=status.HTTP_400_BAD_REQUEST)
 
     try:
         reservation = Reservation.objects.get(pk=reservation_id)
@@ -781,36 +784,46 @@ def api_derma_face_mappings(request):
 
     from accounts.models import Service
 
+    service_id = service_data.get('id')
+    service    = Service.objects.filter(pk=service_id).first() if service_id else None
+
     with transaction.atomic():
-        mapping = DermaFaceMapping.objects.create(
+        # One mapping per reservation — get or create
+        mapping, _ = DermaFaceMapping.objects.get_or_create(
             reservation=reservation,
             patient=patient,
             mapping_type=mapping_type,
         )
-        for zone_data in zones_data:
-            service_data = zone_data.get('service') or {}
-            service_id   = service_data.get('id')
-            service      = Service.objects.filter(pk=service_id).first() if service_id else None
 
+        # Upsert zone — replace if same zone_id already exists
+        existing_zone = DermaFaceMappingZone.objects.filter(mapping=mapping, zone_id=zone_id).first()
+        if existing_zone:
+            existing_zone.lines.all().delete()
+            existing_zone.zone_label = zone_label
+            existing_zone.service    = service
+            existing_zone.save()
+            zone = existing_zone
+        else:
             zone = DermaFaceMappingZone.objects.create(
                 mapping=mapping,
-                zone_id=zone_data.get('zone_id'),
-                zone_label=zone_data.get('zone_label', ''),
+                zone_id=zone_id,
+                zone_label=zone_label,
                 service=service,
             )
-            for line_data in zone_data.get('lines', []):
-                DermaFaceMappingLine.objects.create(
-                    zone=zone,
-                    line_type=line_data.get('line_type', ''),
-                    product_id=line_data.get('product_id'),
-                    product_type=line_data.get('product_type', ''),
-                    quantity=line_data.get('quantity'),
-                    volume_ml=line_data.get('volume_ml'),
-                    machine_id=line_data.get('machine_id'),
-                    machine_type=line_data.get('machine_type', ''),
-                    minutes=line_data.get('minutes'),
-                    pulses=line_data.get('pulses'),
-                )
+
+        for line_data in lines_data:
+            DermaFaceMappingLine.objects.create(
+                zone=zone,
+                line_type=line_data.get('line_type', ''),
+                product_id=line_data.get('product_id'),
+                product_type=line_data.get('product_type', ''),
+                quantity=line_data.get('quantity'),
+                volume_ml=line_data.get('volume_ml'),
+                machine_id=line_data.get('machine_id'),
+                machine_type=line_data.get('machine_type', ''),
+                minutes=line_data.get('minutes'),
+                pulses=line_data.get('pulses'),
+            )
 
     result = DermaFaceMapping.objects.prefetch_related(
         'zones__lines__product', 'zones__lines__machine', 'zones__service'
