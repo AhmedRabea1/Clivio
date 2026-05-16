@@ -103,6 +103,48 @@ class ReservationAttachment(models.Model):
         return f'Attachment for {self.reservation} — {self.pk}'
 
 
+class DermaFaceMapping(models.Model):
+    reservation  = models.ForeignKey(Reservation, on_delete=models.CASCADE, related_name='derma_mappings')
+    patient      = models.ForeignKey(Patient, on_delete=models.CASCADE, related_name='derma_mappings')
+    mapping_type = models.CharField(max_length=20, default='face')
+    created_at   = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['-created_at']
+
+    def __str__(self):
+        return f'DermaMapping {self.pk} — {self.reservation}'
+
+
+class DermaFaceMappingZone(models.Model):
+    mapping    = models.ForeignKey(DermaFaceMapping, on_delete=models.CASCADE, related_name='zones')
+    zone_id    = models.IntegerField()
+    zone_label = models.CharField(max_length=100)
+    service    = models.ForeignKey('accounts.Service', on_delete=models.SET_NULL, null=True, blank=True)
+
+    class Meta:
+        ordering = ['zone_id']
+
+    def __str__(self):
+        return f'Zone {self.zone_label}'
+
+
+class DermaFaceMappingLine(models.Model):
+    zone         = models.ForeignKey(DermaFaceMappingZone, on_delete=models.CASCADE, related_name='lines')
+    line_type    = models.CharField(max_length=20)           # product | machine
+    product      = models.ForeignKey('accounts.Product', on_delete=models.SET_NULL, null=True, blank=True)
+    product_type = models.CharField(max_length=50, blank=True)  # syringe | veil
+    quantity     = models.IntegerField(null=True, blank=True)
+    volume_ml    = models.DecimalField(max_digits=6, decimal_places=2, null=True, blank=True)
+    machine      = models.ForeignKey('accounts.Machine', on_delete=models.SET_NULL, null=True, blank=True)
+    machine_type = models.CharField(max_length=50, blank=True)  # duration | pulses | sessions | injectables
+    minutes      = models.IntegerField(null=True, blank=True)
+    pulses       = models.IntegerField(null=True, blank=True)
+
+    def __str__(self):
+        return f'Line {self.line_type} — zone {self.zone_id}'
+
+
 class AuditLog(models.Model):
     user = models.ForeignKey(
         settings.AUTH_USER_MODEL,

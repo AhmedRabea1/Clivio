@@ -7,11 +7,13 @@ from rest_framework.pagination import PageNumberPagination
 from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
 
-from .models import Reservation, Patient, ReservationAttachment
+from django.db import transaction
+
+from .models import Reservation, Patient, ReservationAttachment, DermaFaceMapping, DermaFaceMappingZone, DermaFaceMappingLine
 from .serializers import (
     PublicReservationCreateSerializer, ReservationSerializer, ReservationUpdateSerializer,
     PatientSerializer, PatientCreateSerializer, ReservationCreateSerializer,
-    ReservationAttachmentSerializer,
+    ReservationAttachmentSerializer, DermaFaceMappingSerializer,
 )
 
 
@@ -707,6 +709,7 @@ def api_reservation_summary(request):
 
 # ─── Patient Profile ──────────────────────────────────────────────────────────
 
+
 @api_view(['GET'])
 @permission_classes([IsAuthenticated])
 def api_patient_profile(request):
@@ -740,3 +743,95 @@ def api_patient_profile(request):
         },
         'attachments': ReservationAttachmentSerializer(attachments, many=True, context={'request': request}).data,
     })
+
+
+# ─── Derma Face Mapping ───────────────────────────────────────────────────────
+
+@api_view(['GET', 'POST'])
+@permission_classes([IsAuthenticated])
+def api_derma_face_mappings(request):
+    if request.method == 'GET':
+        reservation_id = request.query_params.get('reservation_id', '').strip()
+        if not reservation_id:
+            return Response({'error': 'reservation_id is required.'}, status=status.HTTP_400_BAD_REQUEST)
+        mappings = DermaFaceMapping.objects.filter(
+            reservation_id=reservation_id
+        ).prefetch_related('zones__lines__product', 'zones__lines__machine', 'zones__service')
+        return Response(DermaFaceMappingSerializer(mappings, many=True).data)
+
+    # POST
+    data           = request.data
+    reservation_id = data.get('reservation_id')
+    patient_id     = data.get('patient_id')
+    mapping_type   = data.get('mapping_type', 'face')
+    zones_data     = data.get('zones', [])
+
+    if not reservation_id or not patient_id:
+        return Response({'error': 'reservation_id and patient_id are required.'}, status=status.HTTP_400_BAD_REQUEST)
+
+    try:
+        reservation = Reservation.objects.get(pk=reservation_id)
+    except Reservation.DoesNotExist:
+        return Response({'error': 'Reservation not found.'}, status=status.HTTP_404_NOT_FOUND)
+
+    try:
+        patient = Patient.objects.get(pk=patient_id)
+    except Patient.DoesNotExist:
+        return Response({'error': 'Patient not found.'}, status=status.HTTP_404_NOT_FOUND)
+
+    from accounts.models import Service, Product, Machine
+
+    with transaction.atomic():
+        mapping = DermaFaceMapping.objects.create(
+            reservation=reservation,
+            patient=patient,
+            mapping_type=mapping_type,
+        )
+        for zone_data in zones_data:
+            service_data = zone_data.get('service') or {}
+            service_id   = service_data.get('id')
+            service      = Service.objects.filter(pk=service_id).first() if service_id else None
+
+            zone = DermaFaceMappingZone.objects.create(
+                mapping=mapping,
+                zone_id=zone_data.get('zone_id'),
+                zone_label=zone_data.get('zone_label', ''),
+                service=service,
+            )
+            for line_data in zone_data.get('lines', []):
+                product_id = line_data.get('product_id')
+                machine_id = line_data.get('machine_id')
+                DermaFaceMappingLine.objects.create(
+                    zone=zone,
+                    line_type=line_data.get('line_type', ''),
+                    product_id=product_id if product_id and Product.objects.filter(pk=product_id).exists() else None,
+                    product_type=line_data.get('product_type', ''),
+                    quantity=line_data.get('quantity'),
+                    volume_ml=line_data.get('volume_ml'),
+                    machine_id=machine_id if machine_id and Machine.objects.filter(pk=machine_id).exists() else None,
+                    machine_type=line_data.get('machine_type', ''),
+                    minutes=line_data.get('minutes'),
+                    pulses=line_data.get('pulses'),
+                )
+
+    result = DermaFaceMapping.objects.prefetch_related(
+        'zones__lines__product', 'zones__lines__machine', 'zones__service'
+    ).get(pk=mapping.pk)
+    return Response(DermaFaceMappingSerializer(result).data, status=status.HTTP_201_CREATED)
+
+
+@api_view(['GET', 'DELETE'])
+@permission_classes([IsAuthenticated])
+def api_derma_face_mapping_detail(request, pk):
+    try:
+        mapping = DermaFaceMapping.objects.prefetch_related(
+            'zones__lines__product', 'zones__lines__machine', 'zones__service'
+        ).get(pk=pk)
+    except DermaFaceMapping.DoesNotExist:
+        return Response({'error': 'Not found.'}, status=status.HTTP_404_NOT_FOUND)
+
+    if request.method == 'GET':
+        return Response(DermaFaceMappingSerializer(mapping).data)
+
+    mapping.delete()
+    return Response(status=status.HTTP_204_NO_CONTENT)

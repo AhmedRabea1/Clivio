@@ -1,5 +1,5 @@
 from rest_framework import serializers
-from .models import Patient, Reservation, ReservationAttachment
+from .models import Patient, Reservation, ReservationAttachment, DermaFaceMappingLine, DermaFaceMappingZone, DermaFaceMapping
 
 
 class ReservationAttachmentSerializer(serializers.ModelSerializer):
@@ -258,3 +258,45 @@ class PublicReservationCreateSerializer(serializers.Serializer):
             date_of_visit=data['date_of_visit'],
             slot=data.get('slot'),
         )
+
+
+class DermaFaceMappingLineSerializer(serializers.ModelSerializer):
+    product_id   = serializers.IntegerField(source='product.id',   default=None, read_only=True)
+    product_name = serializers.CharField(source='product.name',    default=None, read_only=True)
+    machine_id   = serializers.IntegerField(source='machine.id',   default=None, read_only=True)
+    machine_name = serializers.CharField(source='machine.name',    default=None, read_only=True)
+
+    class Meta:
+        model  = DermaFaceMappingLine
+        fields = (
+            'id', 'line_type',
+            'product_id', 'product_name', 'product_type', 'quantity', 'volume_ml',
+            'machine_id', 'machine_name', 'machine_type', 'minutes', 'pulses',
+        )
+
+
+class DermaFaceMappingZoneSerializer(serializers.ModelSerializer):
+    service = serializers.SerializerMethodField()
+    lines   = DermaFaceMappingLineSerializer(many=True, read_only=True)
+
+    class Meta:
+        model  = DermaFaceMappingZone
+        fields = ('id', 'zone_id', 'zone_label', 'service', 'lines')
+
+    def get_service(self, obj):
+        if not obj.service:
+            return None
+        return {
+            'id':               obj.service.id,
+            'name':             obj.service.name,
+            'category':         obj.service.category,
+            'category_display': obj.service.get_category_display(),
+        }
+
+
+class DermaFaceMappingSerializer(serializers.ModelSerializer):
+    zones = DermaFaceMappingZoneSerializer(many=True, read_only=True)
+
+    class Meta:
+        model  = DermaFaceMapping
+        fields = ('id', 'reservation_id', 'patient_id', 'mapping_type', 'created_at', 'zones')
