@@ -779,7 +779,7 @@ def api_derma_face_mappings(request):
     except Patient.DoesNotExist:
         return Response({'error': 'Patient not found.'}, status=status.HTTP_404_NOT_FOUND)
 
-    from accounts.models import Service, Product, Machine
+    from accounts.models import Service
 
     with transaction.atomic():
         mapping = DermaFaceMapping.objects.create(
@@ -799,16 +799,14 @@ def api_derma_face_mappings(request):
                 service=service,
             )
             for line_data in zone_data.get('lines', []):
-                product_id = line_data.get('product_id')
-                machine_id = line_data.get('machine_id')
                 DermaFaceMappingLine.objects.create(
                     zone=zone,
                     line_type=line_data.get('line_type', ''),
-                    product_id=product_id if product_id and Product.objects.filter(pk=product_id).exists() else None,
+                    product_id=line_data.get('product_id'),
                     product_type=line_data.get('product_type', ''),
                     quantity=line_data.get('quantity'),
                     volume_ml=line_data.get('volume_ml'),
-                    machine_id=machine_id if machine_id and Machine.objects.filter(pk=machine_id).exists() else None,
+                    machine_id=line_data.get('machine_id'),
                     machine_type=line_data.get('machine_type', ''),
                     minutes=line_data.get('minutes'),
                     pulses=line_data.get('pulses'),

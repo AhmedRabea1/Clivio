@@ -261,10 +261,8 @@ class PublicReservationCreateSerializer(serializers.Serializer):
 
 
 class DermaFaceMappingLineSerializer(serializers.ModelSerializer):
-    product_id   = serializers.IntegerField(source='product.id',   default=None, read_only=True)
-    product_name = serializers.CharField(source='product.name',    default=None, read_only=True)
-    machine_id   = serializers.IntegerField(source='machine.id',   default=None, read_only=True)
-    machine_name = serializers.CharField(source='machine.name',    default=None, read_only=True)
+    product_name = serializers.SerializerMethodField()
+    machine_name = serializers.SerializerMethodField()
 
     class Meta:
         model  = DermaFaceMappingLine
@@ -273,6 +271,12 @@ class DermaFaceMappingLineSerializer(serializers.ModelSerializer):
             'product_id', 'product_name', 'product_type', 'quantity', 'volume_ml',
             'machine_id', 'machine_name', 'machine_type', 'minutes', 'pulses',
         )
+
+    def get_product_name(self, obj):
+        return obj.product.name if obj.product_id else None
+
+    def get_machine_name(self, obj):
+        return obj.machine.name if obj.machine_id else None
 
 
 class DermaFaceMappingZoneSerializer(serializers.ModelSerializer):
