@@ -846,3 +846,15 @@ def api_derma_face_mapping_detail(request, pk):
 
     mapping.delete()
     return Response(status=status.HTTP_204_NO_CONTENT)
+
+
+@api_view(['DELETE'])
+@permission_classes([IsAuthenticated])
+def api_derma_face_mapping_line_detail(request, pk):
+    try:
+        line = DermaFaceMappingLine.objects.get(pk=pk)
+    except DermaFaceMappingLine.DoesNotExist:
+        return Response({'error': 'Not found.'}, status=status.HTTP_404_NOT_FOUND)
+
+    line.delete()
+    return Response(status=status.HTTP_204_NO_CONTENT)
