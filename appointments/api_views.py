@@ -9,7 +9,7 @@ from rest_framework.response import Response
 
 from django.db import transaction
 
-from .models import Reservation, Patient, ReservationAttachment, DermaFaceMapping, DermaFaceMappingZone, DermaFaceMappingLine
+from .models import Reservation, Patient, ReservationAttachment, DermaFaceMapping, DermaFaceMappingZone, DermaFaceMappingZoneService, DermaFaceMappingLine
 from .serializers import (
     PublicReservationCreateSerializer, ReservationSerializer, ReservationUpdateSerializer,
     PatientSerializer, PatientCreateSerializer, ReservationCreateSerializer,
@@ -756,18 +756,21 @@ def api_derma_face_mappings(request):
             return Response({'error': 'reservation_id is required.'}, status=status.HTTP_400_BAD_REQUEST)
         mappings = DermaFaceMapping.objects.filter(
             reservation_id=reservation_id
-        ).prefetch_related('zones__lines__product', 'zones__lines__machine', 'zones__service')
+        ).prefetch_related(
+            'zones__zone_services__lines__product',
+            'zones__zone_services__lines__machine',
+            'zones__zone_services__service',
+        )
         return Response(DermaFaceMappingSerializer(mappings, many=True).data)
 
-    # POST — one zone per request
+    # POST — one zone per request, multiple services each with lines
     data           = request.data
     reservation_id = data.get('reservation_id')
     patient_id     = data.get('patient_id')
     mapping_type   = data.get('mapping_type', 'face')
     zone_id        = data.get('zone_id')
     zone_label     = data.get('zone_label', '')
-    service_data   = data.get('service') or {}
-    lines_data     = data.get('lines', [])
+    services_data  = data.get('services', [])
 
     if not reservation_id or not patient_id or not zone_id:
         return Response({'error': 'reservation_id, patient_id and zone_id are required.'}, status=status.HTTP_400_BAD_REQUEST)
@@ -784,23 +787,18 @@ def api_derma_face_mappings(request):
 
     from accounts.models import Service
 
-    service_id = service_data.get('id')
-    service    = Service.objects.filter(pk=service_id).first() if service_id else None
-
     with transaction.atomic():
-        # One mapping per reservation — get or create
         mapping, _ = DermaFaceMapping.objects.get_or_create(
             reservation=reservation,
             patient=patient,
             mapping_type=mapping_type,
         )
 
-        # Upsert zone — replace if same zone_id already exists
+        # Upsert zone — delete existing zone_services (cascades to lines) then recreate
         existing_zone = DermaFaceMappingZone.objects.filter(mapping=mapping, zone_id=zone_id).first()
         if existing_zone:
-            existing_zone.lines.all().delete()
+            existing_zone.zone_services.all().delete()
             existing_zone.zone_label = zone_label
-            existing_zone.service    = service
             existing_zone.save()
             zone = existing_zone
         else:
@@ -808,25 +806,31 @@ def api_derma_face_mappings(request):
                 mapping=mapping,
                 zone_id=zone_id,
                 zone_label=zone_label,
-                service=service,
             )
 
-        for line_data in lines_data:
-            DermaFaceMappingLine.objects.create(
-                zone=zone,
-                line_type=line_data.get('line_type', ''),
-                product_id=line_data.get('product_id'),
-                product_type=line_data.get('product_type', ''),
-                quantity=line_data.get('quantity'),
-                volume_ml=line_data.get('volume_ml'),
-                machine_id=line_data.get('machine_id'),
-                machine_type=line_data.get('machine_type', ''),
-                minutes=line_data.get('minutes'),
-                pulses=line_data.get('pulses'),
-            )
+        for svc_data in services_data:
+            service_id  = svc_data.get('id')
+            service     = Service.objects.filter(pk=service_id).first() if service_id else None
+            zone_service = DermaFaceMappingZoneService.objects.create(zone=zone, service=service)
+
+            for line_data in svc_data.get('lines', []):
+                DermaFaceMappingLine.objects.create(
+                    zone_service=zone_service,
+                    line_type=line_data.get('line_type', ''),
+                    product_id=line_data.get('product_id'),
+                    product_type=line_data.get('product_type', ''),
+                    quantity=line_data.get('quantity'),
+                    volume_ml=line_data.get('volume_ml'),
+                    machine_id=line_data.get('machine_id'),
+                    machine_type=line_data.get('machine_type', ''),
+                    minutes=line_data.get('minutes'),
+                    pulses=line_data.get('pulses'),
+                )
 
     result = DermaFaceMapping.objects.prefetch_related(
-        'zones__lines__product', 'zones__lines__machine', 'zones__service'
+        'zones__zone_services__lines__product',
+        'zones__zone_services__lines__machine',
+        'zones__zone_services__service',
     ).get(pk=mapping.pk)
     return Response(DermaFaceMappingSerializer(result).data, status=status.HTTP_201_CREATED)
 
@@ -836,7 +840,9 @@ def api_derma_face_mappings(request):
 def api_derma_face_mapping_detail(request, pk):
     try:
         mapping = DermaFaceMapping.objects.prefetch_related(
-            'zones__lines__product', 'zones__lines__machine', 'zones__service'
+            'zones__zone_services__lines__product',
+            'zones__zone_services__lines__machine',
+            'zones__zone_services__service',
         ).get(pk=pk)
     except DermaFaceMapping.DoesNotExist:
         return Response({'error': 'Not found.'}, status=status.HTTP_404_NOT_FOUND)

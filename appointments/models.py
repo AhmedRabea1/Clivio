@@ -120,7 +120,6 @@ class DermaFaceMappingZone(models.Model):
     mapping    = models.ForeignKey(DermaFaceMapping, on_delete=models.CASCADE, related_name='zones')
     zone_id    = models.IntegerField()
     zone_label = models.CharField(max_length=100)
-    service    = models.ForeignKey('accounts.Service', on_delete=models.SET_NULL, null=True, blank=True)
 
     class Meta:
         ordering = ['zone_id']
@@ -129,8 +128,16 @@ class DermaFaceMappingZone(models.Model):
         return f'Zone {self.zone_label}'
 
 
+class DermaFaceMappingZoneService(models.Model):
+    zone    = models.ForeignKey(DermaFaceMappingZone, on_delete=models.CASCADE, related_name='zone_services')
+    service = models.ForeignKey('accounts.Service', on_delete=models.SET_NULL, null=True, blank=True)
+
+    def __str__(self):
+        return f'ZoneService {self.zone} — {self.service}'
+
+
 class DermaFaceMappingLine(models.Model):
-    zone         = models.ForeignKey(DermaFaceMappingZone, on_delete=models.CASCADE, related_name='lines')
+    zone_service = models.ForeignKey(DermaFaceMappingZoneService, on_delete=models.CASCADE, related_name='lines')
     line_type    = models.CharField(max_length=20)           # product | machine
     product      = models.ForeignKey('accounts.Product', on_delete=models.SET_NULL, null=True, blank=True)
     product_type = models.CharField(max_length=50, blank=True)  # syringe | veil
@@ -142,7 +149,7 @@ class DermaFaceMappingLine(models.Model):
     pulses       = models.IntegerField(null=True, blank=True)
 
     def __str__(self):
-        return f'Line {self.line_type} — zone {self.zone_id}'
+        return f'Line {self.line_type}'
 
 
 class AuditLog(models.Model):

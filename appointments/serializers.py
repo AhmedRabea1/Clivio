@@ -1,5 +1,5 @@
 from rest_framework import serializers
-from .models import Patient, Reservation, ReservationAttachment, DermaFaceMappingLine, DermaFaceMappingZone, DermaFaceMapping
+from .models import Patient, Reservation, ReservationAttachment, DermaFaceMappingLine, DermaFaceMappingZoneService, DermaFaceMappingZone, DermaFaceMapping
 
 
 class ReservationAttachmentSerializer(serializers.ModelSerializer):
@@ -279,13 +279,13 @@ class DermaFaceMappingLineSerializer(serializers.ModelSerializer):
         return obj.machine.name if obj.machine_id else None
 
 
-class DermaFaceMappingZoneSerializer(serializers.ModelSerializer):
+class DermaFaceMappingZoneServiceSerializer(serializers.ModelSerializer):
     service = serializers.SerializerMethodField()
     lines   = DermaFaceMappingLineSerializer(many=True, read_only=True)
 
     class Meta:
-        model  = DermaFaceMappingZone
-        fields = ('id', 'zone_id', 'zone_label', 'service', 'lines')
+        model  = DermaFaceMappingZoneService
+        fields = ('id', 'service', 'lines')
 
     def get_service(self, obj):
         if not obj.service:
@@ -296,6 +296,14 @@ class DermaFaceMappingZoneSerializer(serializers.ModelSerializer):
             'category':         obj.service.category,
             'category_display': obj.service.get_category_display(),
         }
+
+
+class DermaFaceMappingZoneSerializer(serializers.ModelSerializer):
+    services = DermaFaceMappingZoneServiceSerializer(many=True, read_only=True, source='zone_services')
+
+    class Meta:
+        model  = DermaFaceMappingZone
+        fields = ('id', 'zone_id', 'zone_label', 'services')
 
 
 class DermaFaceMappingSerializer(serializers.ModelSerializer):
