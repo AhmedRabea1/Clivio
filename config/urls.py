@@ -21,6 +21,7 @@ from accounts.api_views import (
     api_pulse_packages, api_pulse_package_detail,
     api_area_packages, api_area_package_detail,
     api_doctor_medicines, api_doctor_medicine_detail,
+    api_general_services, api_general_service_detail,
 )
 from branches.api_views import (
     api_branches, api_branch_detail, api_branch_status, api_branch_users,
@@ -87,6 +88,10 @@ api_urlpatterns = [
     # Doctor Medicines
     path('doctor-medicines',           api_doctor_medicines,         name='api_doctor_medicines'),
     path('doctor-medicines/<int:pk>',  api_doctor_medicine_detail,   name='api_doctor_medicine_detail'),
+
+    # General Services
+    path('general-services',           api_general_services,         name='api_general_services'),
+    path('general-services/<int:pk>',  api_general_service_detail,   name='api_general_service_detail'),
 
     # Configuration
     path('configuration',        api_configuration,        name='api_configuration'),

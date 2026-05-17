@@ -142,7 +142,7 @@ class DermaFaceMappingLine(models.Model):
     product      = models.ForeignKey('accounts.Product', on_delete=models.SET_NULL, null=True, blank=True)
     product_type = models.CharField(max_length=50, blank=True)  # syringe | veil
     quantity     = models.IntegerField(null=True, blank=True)
-    volume_ml    = models.DecimalField(max_digits=6, decimal_places=2, null=True, blank=True)
+    volume_ml    = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True)
     machine      = models.ForeignKey('accounts.Machine', on_delete=models.SET_NULL, null=True, blank=True)
     machine_type = models.CharField(max_length=50, blank=True)  # duration | pulses | sessions | injectables
     minutes      = models.IntegerField(null=True, blank=True)

@@ -13,7 +13,7 @@ from rest_framework.response import Response
 from rest_framework_simplejwt.tokens import RefreshToken
 from rest_framework_simplejwt.exceptions import TokenError
 
-from .models import User, Configuration, Doctor, AssistantRole, Assistant, Service, Product, Machine, PulsePackage, AreaPackage, DoctorMedicine
+from .models import User, Configuration, Doctor, AssistantRole, Assistant, Service, Product, Machine, PulsePackage, AreaPackage, DoctorMedicine, GeneralService
 from .serializers import (
     LoginSerializer, UserSerializer,
     UserCreateSerializer, UserUpdateBranchesSerializer,
@@ -21,6 +21,7 @@ from .serializers import (
     AssistantRoleSerializer, AssistantSerializer, AssistantCreateSerializer,
     ServiceSerializer, ProductSerializer, MachineSerializer,
     PulsePackageSerializer, AreaPackageSerializer, DoctorMedicineSerializer,
+    GeneralServiceSerializer,
 )
 from branches.models import Branch, UserBranchAssignment
 
@@ -833,4 +834,48 @@ def api_doctor_medicine_detail(request, pk):
     if serializer.is_valid():
         serializer.save()
         return Response(DoctorMedicineSerializer(medicine).data)
+    return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+
+# ─── General Services ─────────────────────────────────────────────────────────
+
+@api_view(['GET', 'POST'])
+@permission_classes([IsAuthenticated])
+def api_general_services(request):
+    if request.method == 'GET':
+        doctor_id = request.query_params.get('doctor_id', '').strip()
+        qs = GeneralService.objects.all()
+        if doctor_id:
+            qs = qs.filter(doctor__user__pk=doctor_id)
+        paginator = PageNumberPagination()
+        paginator.page_size = 10
+        page = paginator.paginate_queryset(qs, request)
+        return paginator.get_paginated_response(GeneralServiceSerializer(page, many=True).data)
+
+    serializer = GeneralServiceSerializer(data=request.data)
+    if serializer.is_valid():
+        service = serializer.save()
+        return Response(GeneralServiceSerializer(service).data, status=status.HTTP_201_CREATED)
+    return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+
+@api_view(['GET', 'PATCH', 'DELETE'])
+@permission_classes([IsAuthenticated])
+def api_general_service_detail(request, pk):
+    try:
+        service = GeneralService.objects.get(pk=pk)
+    except GeneralService.DoesNotExist:
+        return Response({'error': 'Not found.'}, status=status.HTTP_404_NOT_FOUND)
+
+    if request.method == 'GET':
+        return Response(GeneralServiceSerializer(service).data)
+
+    if request.method == 'DELETE':
+        service.delete()
+        return Response(status=status.HTTP_204_NO_CONTENT)
+
+    serializer = GeneralServiceSerializer(service, data=request.data, partial=True)
+    if serializer.is_valid():
+        serializer.save()
+        return Response(GeneralServiceSerializer(service).data)
     return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)

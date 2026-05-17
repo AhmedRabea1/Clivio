@@ -1,5 +1,5 @@
 from rest_framework import serializers
-from .models import User, Clinic, Configuration, Doctor, AssistantRole, Assistant, Service, Product, Machine, PulsePackage, AreaPackage, DoctorMedicine
+from .models import User, Clinic, Configuration, Doctor, AssistantRole, Assistant, Service, Product, Machine, PulsePackage, AreaPackage, DoctorMedicine, GeneralService
 
 
 class ClinicSerializer(serializers.ModelSerializer):
@@ -553,5 +553,30 @@ class DoctorMedicineSerializer(serializers.Serializer):
             instance.doctor = validated_data.pop('doctor_id')
         instance.name          = validated_data.get('name', instance.name)
         instance.concentration = validated_data.get('concentration', instance.concentration)
+        instance.save()
+        return instance
+
+
+class GeneralServiceSerializer(serializers.Serializer):
+    id        = serializers.IntegerField(read_only=True)
+    doctor_id = serializers.IntegerField()
+    name      = serializers.CharField(max_length=255)
+    price     = serializers.DecimalField(max_digits=10, decimal_places=2)
+
+    def validate_doctor_id(self, value):
+        try:
+            return Doctor.objects.get(user__pk=value)
+        except Doctor.DoesNotExist:
+            raise serializers.ValidationError('Doctor not found.')
+
+    def create(self, validated_data):
+        doctor = validated_data.pop('doctor_id')
+        return GeneralService.objects.create(doctor=doctor, **validated_data)
+
+    def update(self, instance, validated_data):
+        if 'doctor_id' in validated_data:
+            instance.doctor = validated_data.pop('doctor_id')
+        instance.name  = validated_data.get('name',  instance.name)
+        instance.price = validated_data.get('price', instance.price)
         instance.save()
         return instance
