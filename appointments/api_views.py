@@ -772,8 +772,8 @@ def api_derma_face_mappings(request):
     zone_label     = data.get('zone_label', '')
     services_data  = data.get('services', [])
 
-    if not reservation_id or not patient_id or not zone_id:
-        return Response({'error': 'reservation_id, patient_id and zone_id are required.'}, status=status.HTTP_400_BAD_REQUEST)
+    if not reservation_id or not patient_id:
+        return Response({'error': 'reservation_id and patient_id are required.'}, status=status.HTTP_400_BAD_REQUEST)
 
     try:
         reservation = Reservation.objects.get(pk=reservation_id)
@@ -793,6 +793,12 @@ def api_derma_face_mappings(request):
             patient=patient,
             mapping_type=mapping_type,
         )
+
+        # If zone_id not provided, auto-generate one beyond existing max
+        if not zone_id:
+            from django.db.models import Max
+            max_id = DermaFaceMappingZone.objects.filter(mapping=mapping).aggregate(Max('zone_id'))['zone_id__max'] or 0
+            zone_id = max_id + 1
 
         # Upsert zone — delete existing zone_services (cascades to lines) then recreate
         existing_zone = DermaFaceMappingZone.objects.filter(mapping=mapping, zone_id=zone_id).first()
