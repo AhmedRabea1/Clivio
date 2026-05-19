@@ -9,7 +9,7 @@ from rest_framework.response import Response
 
 from django.db import transaction
 
-from .models import Reservation, Patient, ReservationAttachment, DermaFaceMapping, DermaFaceMappingZone, DermaFaceMappingZoneService, DermaFaceMappingLine
+from .models import Reservation, Patient, ReservationAttachment, DermaFaceMapping, DermaFaceMappingZone, DermaFaceMappingZoneService, DermaFaceMappingLine, ZoneDefinition
 from .serializers import (
     PublicReservationCreateSerializer, ReservationSerializer, ReservationUpdateSerializer,
     PatientSerializer, PatientCreateSerializer, ReservationCreateSerializer,
@@ -870,3 +870,10 @@ def api_derma_face_mapping_line_detail(request, pk):
 
     line.delete()
     return Response(status=status.HTTP_204_NO_CONTENT)
+
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def api_zone_definitions(request):
+    zones = ZoneDefinition.objects.all()
+    return Response([{'zone_id': z.zone_id, 'zone_label': z.zone_label} for z in zones])

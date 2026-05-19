@@ -103,6 +103,17 @@ class ReservationAttachment(models.Model):
         return f'Attachment for {self.reservation} — {self.pk}'
 
 
+class ZoneDefinition(models.Model):
+    zone_id    = models.IntegerField(unique=True)
+    zone_label = models.CharField(max_length=100)
+
+    class Meta:
+        ordering = ['zone_id']
+
+    def __str__(self):
+        return f'{self.zone_id} — {self.zone_label}'
+
+
 class DermaFaceMapping(models.Model):
     reservation  = models.ForeignKey(Reservation, on_delete=models.CASCADE, related_name='derma_mappings')
     patient      = models.ForeignKey(Patient, on_delete=models.CASCADE, related_name='derma_mappings')

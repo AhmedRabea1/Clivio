@@ -35,6 +35,7 @@ from appointments.api_views import (
     api_patient_profile,
     api_derma_face_mappings, api_derma_face_mapping_detail,
     api_derma_face_mapping_line_detail,
+    api_zone_definitions,
 )
 
 api_urlpatterns = [
@@ -114,6 +115,9 @@ api_urlpatterns = [
     path('reservation-summary',                         api_reservation_summary,            name='api_reservation_summary'),
     path('reservations/<int:pk>/prescription',          api_reservation_prescription,       name='api_reservation_prescription'),
     path('patient-profile',                             api_patient_profile,                name='api_patient_profile'),
+
+    # Zone Definitions
+    path('zone-definitions', api_zone_definitions, name='api_zone_definitions'),
 
     # Derma Face Mappings
     path('derma-face-mappings',           api_derma_face_mappings,        name='api_derma_face_mappings'),
