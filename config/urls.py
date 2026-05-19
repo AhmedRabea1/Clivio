@@ -36,6 +36,9 @@ from appointments.api_views import (
     api_derma_face_mappings, api_derma_face_mapping_detail,
     api_derma_face_mapping_line_detail,
     api_zone_definitions,
+    api_derma_body_mappings, api_derma_body_mapping_detail,
+    api_derma_body_mapping_line_detail,
+    api_body_zone_definitions,
 )
 
 api_urlpatterns = [
@@ -117,12 +120,18 @@ api_urlpatterns = [
     path('patient-profile',                             api_patient_profile,                name='api_patient_profile'),
 
     # Zone Definitions
-    path('zone-definitions', api_zone_definitions, name='api_zone_definitions'),
+    path('zone-definitions',      api_zone_definitions,       name='api_zone_definitions'),
+    path('body-zone-definitions', api_body_zone_definitions,  name='api_body_zone_definitions'),
 
     # Derma Face Mappings
-    path('derma-face-mappings',           api_derma_face_mappings,        name='api_derma_face_mappings'),
+    path('derma-face-mappings',                api_derma_face_mappings,             name='api_derma_face_mappings'),
     path('derma-face-mappings/<int:pk>',       api_derma_face_mapping_detail,       name='api_derma_face_mapping_detail'),
     path('derma-face-mapping-lines/<int:pk>',  api_derma_face_mapping_line_detail,  name='api_derma_face_mapping_line_detail'),
+
+    # Derma Body Mappings
+    path('derma-body-mappings',                api_derma_body_mappings,             name='api_derma_body_mappings'),
+    path('derma-body-mappings/<int:pk>',       api_derma_body_mapping_detail,       name='api_derma_body_mapping_detail'),
+    path('derma-body-mapping-lines/<int:pk>',  api_derma_body_mapping_line_detail,  name='api_derma_body_mapping_line_detail'),
 
     # Branches
     path('branches',                      api_branches,       name='api_branches'),

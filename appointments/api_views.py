@@ -9,11 +9,16 @@ from rest_framework.response import Response
 
 from django.db import transaction
 
-from .models import Reservation, Patient, ReservationAttachment, DermaFaceMapping, DermaFaceMappingZone, DermaFaceMappingZoneService, DermaFaceMappingLine, ZoneDefinition
+from .models import (
+    Reservation, Patient, ReservationAttachment,
+    DermaFaceMapping, DermaFaceMappingZone, DermaFaceMappingZoneService, DermaFaceMappingLine,
+    DermaBodyMapping, DermaBodyMappingZone, DermaBodyMappingZoneService, DermaBodyMappingLine,
+    ZoneDefinition, BodyZoneDefinition,
+)
 from .serializers import (
     PublicReservationCreateSerializer, ReservationSerializer, ReservationUpdateSerializer,
     PatientSerializer, PatientCreateSerializer, ReservationCreateSerializer,
-    ReservationAttachmentSerializer, DermaFaceMappingSerializer,
+    ReservationAttachmentSerializer, DermaFaceMappingSerializer, DermaBodyMappingSerializer,
 )
 
 
@@ -877,3 +882,135 @@ def api_derma_face_mapping_line_detail(request, pk):
 def api_zone_definitions(request):
     zones = ZoneDefinition.objects.all()
     return Response([{'zone_id': z.zone_id, 'zone_label': z.zone_label} for z in zones])
+
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def api_body_zone_definitions(request):
+    zones = BodyZoneDefinition.objects.all()
+    return Response([{'zone_id': z.zone_id, 'zone_label': z.zone_label} for z in zones])
+
+
+# ─── Derma Body Mapping ───────────────────────────────────────────────────────
+
+@api_view(['GET', 'POST'])
+@permission_classes([IsAuthenticated])
+def api_derma_body_mappings(request):
+    if request.method == 'GET':
+        reservation_id = request.query_params.get('reservation_id', '').strip()
+        if not reservation_id:
+            return Response({'error': 'reservation_id is required.'}, status=status.HTTP_400_BAD_REQUEST)
+        mappings = DermaBodyMapping.objects.filter(
+            reservation_id=reservation_id
+        ).prefetch_related(
+            'zones__zone_services__lines__product',
+            'zones__zone_services__lines__machine',
+            'zones__zone_services__service',
+        )
+        return Response(DermaBodyMappingSerializer(mappings, many=True).data)
+
+    # POST — one zone per request, multiple services each with lines
+    data           = request.data
+    reservation_id = data.get('reservation_id')
+    patient_id     = data.get('patient_id')
+    mapping_type   = data.get('mapping_type', 'body')
+    zone_id        = data.get('zone_id')
+    zone_label     = data.get('zone_label', '')
+    services_data  = data.get('services', [])
+
+    if not reservation_id or not patient_id:
+        return Response({'error': 'reservation_id and patient_id are required.'}, status=status.HTTP_400_BAD_REQUEST)
+
+    try:
+        reservation = Reservation.objects.get(pk=reservation_id)
+    except Reservation.DoesNotExist:
+        return Response({'error': 'Reservation not found.'}, status=status.HTTP_404_NOT_FOUND)
+
+    try:
+        patient = Patient.objects.get(pk=patient_id)
+    except Patient.DoesNotExist:
+        return Response({'error': 'Patient not found.'}, status=status.HTTP_404_NOT_FOUND)
+
+    from accounts.models import Service
+    from django.db.models import Max
+
+    with transaction.atomic():
+        mapping, _ = DermaBodyMapping.objects.get_or_create(
+            reservation=reservation,
+            patient=patient,
+            mapping_type=mapping_type,
+        )
+
+        if zone_id is None or (isinstance(zone_id, int) and zone_id < 0):
+            max_id = DermaBodyMappingZone.objects.filter(mapping=mapping).aggregate(Max('zone_id'))['zone_id__max'] or 0
+            zone_id = max(max_id, 5) + 1  # body has 5 standard zones
+
+        existing_zone = DermaBodyMappingZone.objects.filter(mapping=mapping, zone_id=zone_id).first()
+        if existing_zone:
+            existing_zone.zone_services.all().delete()
+            existing_zone.zone_label = zone_label
+            existing_zone.save()
+            zone = existing_zone
+        else:
+            zone = DermaBodyMappingZone.objects.create(
+                mapping=mapping,
+                zone_id=zone_id,
+                zone_label=zone_label,
+            )
+
+        for svc_data in services_data:
+            service_id   = svc_data.get('id')
+            service      = Service.objects.filter(pk=service_id).first() if service_id else None
+            zone_service = DermaBodyMappingZoneService.objects.create(zone=zone, service=service)
+
+            for line_data in svc_data.get('lines', []):
+                DermaBodyMappingLine.objects.create(
+                    zone_service=zone_service,
+                    line_type=line_data.get('line_type', ''),
+                    product_id=line_data.get('product_id'),
+                    product_type=line_data.get('product_type', ''),
+                    quantity=line_data.get('quantity'),
+                    volume_ml=line_data.get('volume_ml'),
+                    machine_id=line_data.get('machine_id'),
+                    machine_type=line_data.get('machine_type', ''),
+                    minutes=line_data.get('minutes'),
+                    pulses=line_data.get('pulses'),
+                )
+
+    result = DermaBodyMapping.objects.prefetch_related(
+        'zones__zone_services__lines__product',
+        'zones__zone_services__lines__machine',
+        'zones__zone_services__service',
+    ).get(pk=mapping.pk)
+    return Response(DermaBodyMappingSerializer(result).data, status=status.HTTP_201_CREATED)
+
+
+@api_view(['GET', 'DELETE'])
+@permission_classes([IsAuthenticated])
+def api_derma_body_mapping_detail(request, pk):
+    try:
+        mapping = DermaBodyMapping.objects.prefetch_related(
+            'zones__zone_services__lines__product',
+            'zones__zone_services__lines__machine',
+            'zones__zone_services__service',
+        ).get(pk=pk)
+    except DermaBodyMapping.DoesNotExist:
+        return Response({'error': 'Not found.'}, status=status.HTTP_404_NOT_FOUND)
+
+    if request.method == 'GET':
+        return Response(DermaBodyMappingSerializer(mapping).data)
+
+    mapping.delete()
+    return Response(status=status.HTTP_204_NO_CONTENT)
+
+
+@api_view(['DELETE'])
+@permission_classes([IsAuthenticated])
+def api_derma_body_mapping_line_detail(request, pk):
+    try:
+        line = DermaBodyMappingLine.objects.get(pk=pk)
+    except DermaBodyMappingLine.DoesNotExist:
+        return Response({'error': 'Not found.'}, status=status.HTTP_404_NOT_FOUND)
+
+    line.delete()
+    return Response(status=status.HTTP_204_NO_CONTENT)

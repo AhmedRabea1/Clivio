@@ -1,5 +1,9 @@
 from rest_framework import serializers
-from .models import Patient, Reservation, ReservationAttachment, DermaFaceMappingLine, DermaFaceMappingZoneService, DermaFaceMappingZone, DermaFaceMapping
+from .models import (
+    Patient, Reservation, ReservationAttachment,
+    DermaFaceMappingLine, DermaFaceMappingZoneService, DermaFaceMappingZone, DermaFaceMapping,
+    DermaBodyMappingLine, DermaBodyMappingZoneService, DermaBodyMappingZone, DermaBodyMapping,
+)
 
 
 class ReservationAttachmentSerializer(serializers.ModelSerializer):
@@ -311,4 +315,60 @@ class DermaFaceMappingSerializer(serializers.ModelSerializer):
 
     class Meta:
         model  = DermaFaceMapping
+        fields = ('id', 'reservation_id', 'patient_id', 'mapping_type', 'created_at', 'zones')
+
+
+# ─── Body Mapping Serializers ─────────────────────────────────────────────────
+
+class DermaBodyMappingLineSerializer(serializers.ModelSerializer):
+    product_name = serializers.SerializerMethodField()
+    machine_name = serializers.SerializerMethodField()
+
+    class Meta:
+        model  = DermaBodyMappingLine
+        fields = (
+            'id', 'line_type',
+            'product_id', 'product_name', 'product_type', 'quantity', 'volume_ml',
+            'machine_id', 'machine_name', 'machine_type', 'minutes', 'pulses',
+        )
+
+    def get_product_name(self, obj):
+        return obj.product.name if obj.product_id else None
+
+    def get_machine_name(self, obj):
+        return obj.machine.name if obj.machine_id else None
+
+
+class DermaBodyMappingZoneServiceSerializer(serializers.ModelSerializer):
+    service = serializers.SerializerMethodField()
+    lines   = DermaBodyMappingLineSerializer(many=True, read_only=True)
+
+    class Meta:
+        model  = DermaBodyMappingZoneService
+        fields = ('id', 'service', 'lines')
+
+    def get_service(self, obj):
+        if not obj.service:
+            return None
+        return {
+            'id':               obj.service.id,
+            'name':             obj.service.name,
+            'category':         obj.service.category,
+            'category_display': obj.service.get_category_display(),
+        }
+
+
+class DermaBodyMappingZoneSerializer(serializers.ModelSerializer):
+    services = DermaBodyMappingZoneServiceSerializer(many=True, read_only=True, source='zone_services')
+
+    class Meta:
+        model  = DermaBodyMappingZone
+        fields = ('id', 'zone_id', 'zone_label', 'services')
+
+
+class DermaBodyMappingSerializer(serializers.ModelSerializer):
+    zones = DermaBodyMappingZoneSerializer(many=True, read_only=True)
+
+    class Meta:
+        model  = DermaBodyMapping
         fields = ('id', 'reservation_id', 'patient_id', 'mapping_type', 'created_at', 'zones')

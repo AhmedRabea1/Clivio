@@ -163,6 +163,66 @@ class DermaFaceMappingLine(models.Model):
         return f'Line {self.line_type}'
 
 
+class BodyZoneDefinition(models.Model):
+    zone_id    = models.IntegerField(unique=True)
+    zone_label = models.CharField(max_length=100)
+
+    class Meta:
+        ordering = ['zone_id']
+
+    def __str__(self):
+        return f'{self.zone_id} — {self.zone_label}'
+
+
+class DermaBodyMapping(models.Model):
+    reservation  = models.ForeignKey(Reservation, on_delete=models.CASCADE, related_name='body_mappings')
+    patient      = models.ForeignKey(Patient, on_delete=models.CASCADE, related_name='body_mappings')
+    mapping_type = models.CharField(max_length=20, default='body')
+    created_at   = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['-created_at']
+
+    def __str__(self):
+        return f'BodyMapping {self.pk} — {self.reservation}'
+
+
+class DermaBodyMappingZone(models.Model):
+    mapping    = models.ForeignKey(DermaBodyMapping, on_delete=models.CASCADE, related_name='zones')
+    zone_id    = models.IntegerField()
+    zone_label = models.CharField(max_length=100)
+
+    class Meta:
+        ordering = ['zone_id']
+
+    def __str__(self):
+        return f'Zone {self.zone_label}'
+
+
+class DermaBodyMappingZoneService(models.Model):
+    zone    = models.ForeignKey(DermaBodyMappingZone, on_delete=models.CASCADE, related_name='zone_services')
+    service = models.ForeignKey('accounts.Service', on_delete=models.SET_NULL, null=True, blank=True)
+
+    def __str__(self):
+        return f'ZoneService {self.zone} — {self.service}'
+
+
+class DermaBodyMappingLine(models.Model):
+    zone_service = models.ForeignKey(DermaBodyMappingZoneService, on_delete=models.CASCADE, related_name='lines')
+    line_type    = models.CharField(max_length=20)
+    product      = models.ForeignKey('accounts.Product', on_delete=models.SET_NULL, null=True, blank=True)
+    product_type = models.CharField(max_length=50, blank=True)
+    quantity     = models.IntegerField(null=True, blank=True)
+    volume_ml    = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True)
+    machine      = models.ForeignKey('accounts.Machine', on_delete=models.SET_NULL, null=True, blank=True)
+    machine_type = models.CharField(max_length=50, blank=True)
+    minutes      = models.IntegerField(null=True, blank=True)
+    pulses       = models.IntegerField(null=True, blank=True)
+
+    def __str__(self):
+        return f'Line {self.line_type}'
+
+
 class AuditLog(models.Model):
     user = models.ForeignKey(
         settings.AUTH_USER_MODEL,
