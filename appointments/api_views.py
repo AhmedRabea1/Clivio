@@ -757,6 +757,20 @@ def api_reservation_prescription(request, pk):
                 'detail': '1 service', 'unit_price': str(gs.price), 'total': str(gs.price),
             })
 
+    # ── Decrement product stock ───────────────────────────────────────────────
+    for mapping in DermaFaceMapping.objects.filter(reservation_id=pk):
+        for zone in mapping.zones.prefetch_related('zone_services__lines__product'):
+            for zs in zone.zone_services.all():
+                for line in zs.lines.all():
+                    if line.line_type == 'product' or (line.line_type == 'machine' and line.machine_type == 'injectables'):
+                        _decrement_product(line)
+    for mapping in DermaBodyMapping.objects.filter(reservation_id=pk):
+        for zone in mapping.zones.prefetch_related('zone_services__lines__product'):
+            for zs in zone.zone_services.all():
+                for line in zs.lines.all():
+                    if line.line_type == 'product' or (line.line_type == 'machine' and line.machine_type == 'injectables'):
+                        _decrement_product(line)
+
     subtotal = sum(Decimal(i['total']) for i in pricing_items)
     discount_pct = Decimal(str(discount)) if discount else None
     discount_val = (subtotal * discount_pct / Decimal('100')).quantize(Decimal('0.01')) if discount_pct else None
@@ -1193,6 +1207,38 @@ def api_derma_body_mapping_line_detail(request, pk):
 
 
 # ─── Reservation Pricing ──────────────────────────────────────────────────────
+
+def _decrement_product(line):
+    import math
+    from decimal import Decimal
+
+    product = line.product
+    if not product:
+        return
+
+    if line.product_type == 'syringe':
+        qty = line.quantity or 1
+        product.quantity = max(0, product.quantity - qty)
+        product.save(update_fields=['quantity'])
+
+    elif line.product_type == 'veil':
+        if not product.volume or product.volume == 0:
+            return
+        used_ml    = Decimal(str(line.volume_ml or 0))
+        remainder  = product.remainder_ml or Decimal('0')
+        vol_per_vial = Decimal(str(product.volume))
+
+        if used_ml <= remainder:
+            product.remainder_ml = remainder - used_ml
+            product.save(update_fields=['remainder_ml'])
+        else:
+            still_needed  = used_ml - remainder
+            vials_needed  = math.ceil(float(still_needed) / float(vol_per_vial))
+            new_remainder = Decimal(str(vials_needed)) * vol_per_vial - still_needed
+            product.quantity     = max(0, product.quantity - vials_needed)
+            product.remainder_ml = new_remainder
+            product.save(update_fields=['quantity', 'remainder_ml'])
+
 
 def _price_line(line):
     from decimal import Decimal, ROUND_HALF_UP

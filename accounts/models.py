@@ -271,12 +271,13 @@ class Product(models.Model):
         VEIL     = 'veil',     'Veil'
         SYRINGE  = 'syringe',  'Syringe'
 
-    service  = models.ForeignKey(Service, on_delete=models.CASCADE, related_name='products')
-    name     = models.CharField(max_length=255)
-    type     = models.CharField(max_length=20, choices=Type.choices)
-    quantity = models.PositiveIntegerField()
-    volume   = models.DecimalField(max_digits=8, decimal_places=2, null=True, blank=True)
-    price    = models.DecimalField(max_digits=10, decimal_places=2)
+    service       = models.ForeignKey(Service, on_delete=models.CASCADE, related_name='products')
+    name          = models.CharField(max_length=255)
+    type          = models.CharField(max_length=20, choices=Type.choices)
+    quantity      = models.PositiveIntegerField()
+    volume        = models.DecimalField(max_digits=8, decimal_places=2, null=True, blank=True)
+    price         = models.DecimalField(max_digits=10, decimal_places=2)
+    remainder_ml  = models.DecimalField(max_digits=8, decimal_places=2, default=0)
 
     class Meta:
         ordering = ['name']
