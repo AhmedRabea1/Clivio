@@ -1406,3 +1406,141 @@ def api_reservation_pricing(request):
         'items':       items,
         'grand_total': str(grand_total.quantize(Decimal('0.01'))),
     })
+
+
+# ─── Analytics ────────────────────────────────────────────────────────────────
+
+def _analytics_filters(request):
+    from datetime import date
+    branch_id  = request.query_params.get('branch_id', '').strip()
+    start_date = request.query_params.get('start_date', '').strip()
+    end_date   = request.query_params.get('end_date', '').strip()
+    filters    = {}
+    if branch_id:
+        filters['branch_id'] = branch_id
+    if start_date:
+        filters['date_of_visit__gte'] = start_date
+    if end_date:
+        filters['date_of_visit__lte'] = end_date
+    return filters
+
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def api_analytics_overview(request):
+    from django.db.models import Sum, Count
+    from decimal import Decimal
+
+    f = _analytics_filters(request)
+    reservations = Reservation.objects.filter(**f)
+
+    total_reservations = reservations.count()
+    finished           = reservations.filter(status=Reservation.Status.FINISHED).count()
+    canceled           = reservations.filter(status=Reservation.Status.CANCELED).count()
+    pending            = reservations.filter(status=Reservation.Status.PENDING).count()
+    confirmed          = reservations.filter(status=Reservation.Status.CONFIRMED).count()
+    arrived            = reservations.filter(status=Reservation.Status.ARRIVED).count()
+
+    invoice_f = {k.replace('date_of_visit', 'reservation__date_of_visit'): v for k, v in f.items()}
+    if 'reservation__branch_id' not in invoice_f and 'branch_id' in f:
+        invoice_f['reservation__branch_id'] = invoice_f.pop('branch_id', None)
+    invoice_f = {k.replace('branch_id', 'reservation__branch_id'): v for k, v in f.items()}
+
+    paid_invoices   = Invoice.objects.filter(status=Invoice.Status.PAID, **invoice_f)
+    total_revenue   = paid_invoices.aggregate(t=Sum('total'))['t'] or Decimal('0')
+    pending_revenue = Invoice.objects.filter(status=Invoice.Status.PENDING, **invoice_f).aggregate(t=Sum('total'))['t'] or Decimal('0')
+
+    patient_f = {k.replace('date_of_visit', 'reservations__date_of_visit').replace('branch_id', 'reservations__branch_id'): v for k, v in f.items()}
+    new_patients = Patient.objects.filter(**patient_f).distinct().count()
+
+    return Response({
+        'total_reservations': total_reservations,
+        'finished':           finished,
+        'canceled':           canceled,
+        'pending':            pending,
+        'confirmed':          confirmed,
+        'arrived':            arrived,
+        'total_revenue':      str(total_revenue.quantize(Decimal('0.01'))),
+        'pending_revenue':    str(pending_revenue.quantize(Decimal('0.01'))),
+        'total_patients':     new_patients,
+    })
+
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def api_analytics_revenue(request):
+    from django.db.models import Sum
+    from django.db.models.functions import TruncDate
+    from decimal import Decimal
+
+    f = {k.replace('date_of_visit', 'reservation__date_of_visit').replace('branch_id', 'reservation__branch_id'): v
+         for k, v in _analytics_filters(request).items()}
+
+    daily = (
+        Invoice.objects.filter(status=Invoice.Status.PAID, **f)
+        .annotate(day=TruncDate('reservation__date_of_visit'))
+        .values('day')
+        .annotate(revenue=Sum('total'))
+        .order_by('day')
+    )
+
+    return Response({
+        'data': [{'date': str(r['day']), 'revenue': str(r['revenue'].quantize(Decimal('0.01')))} for r in daily]
+    })
+
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def api_analytics_reservations(request):
+    from django.db.models import Count
+    from django.db.models.functions import TruncDate
+
+    f = _analytics_filters(request)
+    reservations = Reservation.objects.filter(**f)
+
+    by_status = (
+        reservations.values('status')
+        .annotate(count=Count('id'))
+        .order_by('status')
+    )
+
+    daily = (
+        reservations
+        .annotate(day=TruncDate('date_of_visit'))
+        .values('day')
+        .annotate(count=Count('id'))
+        .order_by('day')
+    )
+
+    return Response({
+        'by_status': [{'status': r['status'], 'count': r['count']} for r in by_status],
+        'daily':     [{'date': str(r['day']), 'count': r['count']} for r in daily],
+    })
+
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def api_analytics_doctors(request):
+    from django.db.models import Count, Sum
+
+    f = _analytics_filters(request)
+    reservations = Reservation.objects.filter(**f)
+
+    doctors = (
+        reservations.filter(doctor__isnull=False)
+        .values('doctor__user__id', 'doctor__user__name')
+        .annotate(total_reservations=Count('id'), finished=Count('id', filter=Q(status=Reservation.Status.FINISHED)))
+        .order_by('-total_reservations')[:10]
+    )
+
+    return Response({
+        'doctors': [
+            {
+                'doctor_id':          d['doctor__user__id'],
+                'doctor_name':        d['doctor__user__name'],
+                'total_reservations': d['total_reservations'],
+                'finished':           d['finished'],
+            }
+            for d in doctors
+        ]
+    })

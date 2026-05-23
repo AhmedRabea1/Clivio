@@ -41,6 +41,8 @@ from appointments.api_views import (
     api_body_zone_definitions,
     api_reservation_pricing,
     api_invoices, api_invoice_pay,
+    api_analytics_overview, api_analytics_revenue,
+    api_analytics_reservations, api_analytics_doctors,
 )
 
 api_urlpatterns = [
@@ -141,6 +143,12 @@ api_urlpatterns = [
     # Invoices
     path('invoices',              api_invoices,    name='api_invoices'),
     path('invoices/<int:pk>/pay', api_invoice_pay, name='api_invoice_pay'),
+
+    # Analytics
+    path('analytics/overview',     api_analytics_overview,     name='api_analytics_overview'),
+    path('analytics/revenue',      api_analytics_revenue,      name='api_analytics_revenue'),
+    path('analytics/reservations', api_analytics_reservations, name='api_analytics_reservations'),
+    path('analytics/doctors',      api_analytics_doctors,      name='api_analytics_doctors'),
 
     # Branches
     path('branches',                      api_branches,       name='api_branches'),
