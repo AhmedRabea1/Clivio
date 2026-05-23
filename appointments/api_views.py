@@ -757,20 +757,6 @@ def api_reservation_prescription(request, pk):
                 'detail': '1 service', 'unit_price': str(gs.price), 'total': str(gs.price),
             })
 
-    # ── Decrement product stock ───────────────────────────────────────────────
-    for mapping in DermaFaceMapping.objects.filter(reservation_id=pk):
-        for zone in mapping.zones.prefetch_related('zone_services__lines__product'):
-            for zs in zone.zone_services.all():
-                for line in zs.lines.all():
-                    if line.line_type == 'product' or (line.line_type == 'machine' and line.machine_type == 'injectables'):
-                        _decrement_product(line)
-    for mapping in DermaBodyMapping.objects.filter(reservation_id=pk):
-        for zone in mapping.zones.prefetch_related('zone_services__lines__product'):
-            for zs in zone.zone_services.all():
-                for line in zs.lines.all():
-                    if line.line_type == 'product' or (line.line_type == 'machine' and line.machine_type == 'injectables'):
-                        _decrement_product(line)
-
     subtotal = sum(Decimal(i['total']) for i in pricing_items)
     discount_pct = Decimal(str(discount)) if discount else None
     discount_val = (subtotal * discount_pct / Decimal('100')).quantize(Decimal('0.01')) if discount_pct else None
@@ -852,6 +838,39 @@ def api_reservation_prescription(request, pk):
     }, status=status.HTTP_201_CREATED)
 
 
+# ─── Invoice Pay ─────────────────────────────────────────────────────────────
+
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+def api_invoice_pay(request, pk):
+    try:
+        invoice = Invoice.objects.select_related('reservation').get(pk=pk)
+    except Invoice.DoesNotExist:
+        return Response({'error': 'Invoice not found.'}, status=status.HTTP_404_NOT_FOUND)
+
+    if invoice.status == Invoice.Status.PAID:
+        return Response({'error': 'Invoice is already paid.'}, status=status.HTTP_400_BAD_REQUEST)
+
+    invoice.status = Invoice.Status.PAID
+    invoice.save(update_fields=['status'])
+
+    reservation_id = invoice.reservation_id
+    for mapping in DermaFaceMapping.objects.filter(reservation_id=reservation_id):
+        for zone in mapping.zones.prefetch_related('zone_services__lines__product'):
+            for zs in zone.zone_services.all():
+                for line in zs.lines.all():
+                    if line.line_type == 'product' or (line.line_type == 'machine' and line.machine_type == 'injectables'):
+                        _decrement_product(line)
+    for mapping in DermaBodyMapping.objects.filter(reservation_id=reservation_id):
+        for zone in mapping.zones.prefetch_related('zone_services__lines__product'):
+            for zs in zone.zone_services.all():
+                for line in zs.lines.all():
+                    if line.line_type == 'product' or (line.line_type == 'machine' and line.machine_type == 'injectables'):
+                        _decrement_product(line)
+
+    return Response({'invoice_id': invoice.id, 'invoice_status': invoice.status})
+
+
 # ─── Reservation Summary ──────────────────────────────────────────────────────
 
 @api_view(['GET'])
@@ -897,6 +916,7 @@ def api_reservation_summary(request):
             'branch_name':         reservation.branch.name,
             'discount':            reservation.discount,
             'general_service_ids': list(reservation.general_services.values_list('id', flat=True)),
+            'invoice_status':      reservation.invoices.values_list('status', flat=True).first(),
         },
         'attachments': ReservationAttachmentSerializer(attachments, many=True, context={'request': request}).data,
     })
