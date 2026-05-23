@@ -1441,10 +1441,10 @@ def api_analytics_overview(request):
     confirmed          = reservations.filter(status=Reservation.Status.CONFIRMED).count()
     arrived            = reservations.filter(status=Reservation.Status.ARRIVED).count()
 
-    invoice_f = {k.replace('date_of_visit', 'reservation__date_of_visit'): v for k, v in f.items()}
-    if 'reservation__branch_id' not in invoice_f and 'branch_id' in f:
-        invoice_f['reservation__branch_id'] = invoice_f.pop('branch_id', None)
-    invoice_f = {k.replace('branch_id', 'reservation__branch_id'): v for k, v in f.items()}
+    invoice_f = {
+        k.replace('date_of_visit', 'reservation__date_of_visit').replace('branch_id', 'reservation__branch_id'): v
+        for k, v in f.items()
+    }
 
     paid_invoices   = Invoice.objects.filter(status=Invoice.Status.PAID, **invoice_f)
     total_revenue   = paid_invoices.aggregate(t=Sum('total'))['t'] or Decimal('0')
