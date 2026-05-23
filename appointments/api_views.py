@@ -850,9 +850,12 @@ def api_reservation_prescription(request, pk):
 @permission_classes([IsAuthenticated])
 def api_invoices(request):
     branch_id = request.query_params.get('branch_id', '').strip()
+    status_filter = request.query_params.get('status', '').strip()
     qs = Invoice.objects.select_related('reservation__patient', 'reservation__branch', 'reservation__doctor__user').prefetch_related('reservation__attachments')
     if branch_id:
         qs = qs.filter(reservation__branch_id=branch_id)
+    if status_filter in (Invoice.Status.PENDING, Invoice.Status.PAID):
+        qs = qs.filter(status=status_filter)
     paginator = PageNumberPagination()
     paginator.page_size = 20
     page = paginator.paginate_queryset(qs, request)
