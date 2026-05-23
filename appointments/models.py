@@ -79,6 +79,25 @@ class Reservation(models.Model):
         return f'{self.patient.full_name} — {self.date_of_visit}'
 
 
+class Invoice(models.Model):
+    class Status(models.TextChoices):
+        PENDING = 'pending', 'Pending'
+        PAID    = 'paid',    'Paid'
+
+    reservation = models.ForeignKey(Reservation, on_delete=models.CASCADE, related_name='invoices')
+    subtotal    = models.DecimalField(max_digits=10, decimal_places=2)
+    discount    = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True)
+    total       = models.DecimalField(max_digits=10, decimal_places=2)
+    status      = models.CharField(max_length=20, choices=Status.choices, default=Status.PENDING)
+    created_at  = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['-created_at']
+
+    def __str__(self):
+        return f'Invoice {self.pk} — {self.reservation}'
+
+
 class ReservationAttachment(models.Model):
     reservation = models.ForeignKey(
         Reservation,

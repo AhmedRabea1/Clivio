@@ -10,7 +10,7 @@ from rest_framework.response import Response
 from django.db import transaction
 
 from .models import (
-    Reservation, Patient, ReservationAttachment,
+    Reservation, Patient, ReservationAttachment, Invoice,
     DermaFaceMapping, DermaFaceMappingZone, DermaFaceMappingZoneService, DermaFaceMappingLine,
     DermaBodyMapping, DermaBodyMappingZone, DermaBodyMappingZoneService, DermaBodyMappingLine,
     ZoneDefinition, BodyZoneDefinition,
@@ -480,7 +480,134 @@ def api_reservation_attachment_detail(request, pk):
 
 # ─── Prescription PDF ─────────────────────────────────────────────────────────
 
-def _generate_prescription_pdf(doctor_name, patient_name, medicines, is_examination, discount, clinic_name, logo_url):
+def _generate_invoice_pdf(doctor_name, patient_name, items, subtotal, discount, total, clinic_name, logo_url):
+    from io import BytesIO
+    from datetime import date
+    from decimal import Decimal
+    from reportlab.lib.pagesizes import A4
+    from reportlab.lib.units import cm
+    from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
+    from reportlab.lib.colors import HexColor
+    from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle, HRFlowable
+    from reportlab.lib.enums import TA_CENTER, TA_LEFT, TA_RIGHT
+
+    PRIMARY = HexColor('#2563EB')
+    GRAY    = HexColor('#6B7280')
+    LIGHT   = HexColor('#F3F4F6')
+    BORDER  = HexColor('#E5E7EB')
+    GREEN   = HexColor('#16A34A')
+
+    buffer = BytesIO()
+    doc    = SimpleDocTemplate(buffer, pagesize=A4,
+                               rightMargin=2.5*cm, leftMargin=2.5*cm,
+                               topMargin=2*cm, bottomMargin=2*cm)
+    styles = getSampleStyleSheet()
+    story  = []
+
+    # ── Logo ──────────────────────────────────────────────────────────────────
+    if logo_url:
+        try:
+            import urllib.request
+            from reportlab.platypus import Image as RLImage
+            img_bytes = BytesIO(urllib.request.urlopen(logo_url, timeout=5).read())
+            logo = RLImage(img_bytes, width=5*cm, height=2.5*cm, kind='proportional')
+            logo.hAlign = 'CENTER'
+            story.append(logo)
+            story.append(Spacer(1, 0.3*cm))
+        except Exception:
+            pass
+
+    # ── Header ─────────────────────────────────────────────────────────────────
+    if clinic_name:
+        story.append(Paragraph(clinic_name, ParagraphStyle(
+            'Clinic', fontSize=15, textColor=GRAY, fontName='Helvetica-Bold',
+            alignment=TA_CENTER, spaceAfter=4,
+        )))
+    story.append(Paragraph('Invoice', ParagraphStyle(
+        'Title', fontSize=20, textColor=PRIMARY, fontName='Helvetica-Bold',
+        alignment=TA_CENTER, spaceAfter=6,
+    )))
+    story.append(HRFlowable(width='100%', thickness=2, color=PRIMARY, spaceAfter=12))
+
+    # ── Info ───────────────────────────────────────────────────────────────────
+    today = date.today().strftime('%d %B %Y')
+    L = ParagraphStyle('L', parent=styles['Normal'], fontSize=11, alignment=TA_LEFT)
+    R = ParagraphStyle('R', parent=styles['Normal'], fontSize=11, alignment=TA_RIGHT)
+    info = Table([
+        [Paragraph(f'<b>Doctor:</b>  {doctor_name}', L),  Paragraph(f'<b>Date:</b>  {today}', R)],
+        [Paragraph(f'<b>Patient:</b>  {patient_name}', L), Paragraph('', R)],
+    ], colWidths=[9*cm, 8.5*cm])
+    info.setStyle(TableStyle([
+        ('BACKGROUND',    (0,0), (-1,-1), LIGHT),
+        ('BOX',           (0,0), (-1,-1), 0.5, BORDER),
+        ('INNERGRID',     (0,0), (-1,-1), 0.25, BORDER),
+        ('LEFTPADDING',   (0,0), (-1,-1), 10),
+        ('RIGHTPADDING',  (0,0), (-1,-1), 10),
+        ('TOPPADDING',    (0,0), (-1,-1), 8),
+        ('BOTTOMPADDING', (0,0), (-1,-1), 8),
+    ]))
+    story.append(info)
+    story.append(Spacer(1, 0.6*cm))
+
+    # ── Services table ─────────────────────────────────────────────────────────
+    story.append(Paragraph('Services', ParagraphStyle(
+        'Sec', fontSize=14, textColor=PRIMARY, fontName='Helvetica-Bold', spaceAfter=8,
+    )))
+
+    HDR = ParagraphStyle('HDR', parent=styles['Normal'], fontSize=10, fontName='Helvetica-Bold', textColor=HexColor('#FFFFFF'))
+    CEL = ParagraphStyle('CEL', parent=styles['Normal'], fontSize=10)
+    RCEL = ParagraphStyle('RCEL', parent=styles['Normal'], fontSize=10, alignment=TA_RIGHT)
+
+    rows = [[
+        Paragraph('Service / Item', HDR),
+        Paragraph('Detail',         HDR),
+        Paragraph('Unit Price',     HDR),
+        Paragraph('Total',          HDR),
+    ]]
+    for item in items:
+        rows.append([
+            Paragraph(item.get('name', ''), CEL),
+            Paragraph(item.get('detail', ''), CEL),
+            Paragraph(item.get('unit_price', ''), RCEL),
+            Paragraph(item.get('total', ''), RCEL),
+        ])
+
+    tbl = Table(rows, colWidths=[7*cm, 3.5*cm, 3*cm, 3*cm])
+    tbl.setStyle(TableStyle([
+        ('BACKGROUND',    (0,0), (-1,0),  PRIMARY),
+        ('BACKGROUND',    (0,1), (-1,-1), HexColor('#FFFFFF')),
+        ('ROWBACKGROUNDS',(0,1), (-1,-1), [HexColor('#FFFFFF'), LIGHT]),
+        ('BOX',           (0,0), (-1,-1), 0.5, BORDER),
+        ('INNERGRID',     (0,0), (-1,-1), 0.25, BORDER),
+        ('LEFTPADDING',   (0,0), (-1,-1), 8),
+        ('RIGHTPADDING',  (0,0), (-1,-1), 8),
+        ('TOPPADDING',    (0,0), (-1,-1), 6),
+        ('BOTTOMPADDING', (0,0), (-1,-1), 6),
+    ]))
+    story.append(tbl)
+    story.append(Spacer(1, 0.4*cm))
+
+    # ── Totals ─────────────────────────────────────────────────────────────────
+    totals_data = [[Paragraph('<b>Subtotal</b>', L), Paragraph(f'{subtotal}', RCEL)]]
+    if discount:
+        totals_data.append([Paragraph('<b>Discount</b>', ParagraphStyle('D', parent=styles['Normal'], fontSize=11, textColor=GREEN)), Paragraph(f'- {discount}', ParagraphStyle('DR', parent=styles['Normal'], fontSize=11, alignment=TA_RIGHT, textColor=GREEN))])
+    totals_data.append([Paragraph('<b>Total</b>', ParagraphStyle('T', parent=styles['Normal'], fontSize=13, fontName='Helvetica-Bold', textColor=PRIMARY)), Paragraph(f'<b>{total}</b>', ParagraphStyle('TR', parent=styles['Normal'], fontSize=13, fontName='Helvetica-Bold', alignment=TA_RIGHT, textColor=PRIMARY))])
+
+    totals_tbl = Table(totals_data, colWidths=[13*cm, 3.5*cm])
+    totals_tbl.setStyle(TableStyle([
+        ('ALIGN',         (1,0), (1,-1), 'RIGHT'),
+        ('LINEABOVE',     (0,-1), (-1,-1), 1, PRIMARY),
+        ('TOPPADDING',    (0,0), (-1,-1), 6),
+        ('BOTTOMPADDING', (0,0), (-1,-1), 6),
+    ]))
+    story.append(totals_tbl)
+
+    doc.build(story)
+    buffer.seek(0)
+    return buffer.getvalue()
+
+
+def _generate_prescription_pdf(doctor_name, patient_name, medicines, clinic_name, logo_url):
     from io import BytesIO
     from datetime import date
     from reportlab.lib.pagesizes import A4
@@ -531,7 +658,7 @@ def _generate_prescription_pdf(doctor_name, patient_name, medicines, is_examinat
     R = ParagraphStyle('R', parent=styles['Normal'], fontSize=11, alignment=TA_RIGHT)
     info = Table([
         [Paragraph(f'<b>Doctor:</b>  {doctor_name}',  L), Paragraph(f'<b>Date:</b>  {today}', R)],
-        [Paragraph(f'<b>Patient:</b>  {patient_name}', L), Paragraph(f'<b>Type:</b>  {"Examination" if is_examination else "Follow-up"}', R)],
+        [Paragraph(f'<b>Patient:</b>  {patient_name}', L), Paragraph('', R)],
     ], colWidths=[9*cm, 8.5*cm])
     info.setStyle(TableStyle([
         ('BACKGROUND',   (0,0), (-1,-1), LIGHT),
@@ -561,25 +688,42 @@ def _generate_prescription_pdf(doctor_name, patient_name, medicines, is_examinat
     return buffer.getvalue()
 
 
+def _upload_pdf_to_cloudinary(pdf_bytes, folder, public_id):
+    import cloudinary.uploader, tempfile, os
+    with tempfile.NamedTemporaryFile(suffix='.pdf', delete=False) as tmp:
+        tmp.write(pdf_bytes)
+        tmp_path = tmp.name
+    try:
+        result = cloudinary.uploader.upload(
+            tmp_path,
+            resource_type='raw',
+            folder=folder,
+            public_id=public_id,
+            type='upload',
+            access_mode='public',
+        )
+        return result['secure_url']
+    finally:
+        os.unlink(tmp_path)
+
+
 @api_view(['POST'])
 @permission_classes([IsAuthenticated])
 def api_reservation_prescription(request, pk):
-    from accounts.models import Doctor, Configuration
+    from accounts.models import Doctor, Configuration, GeneralService
     from datetime import datetime
+    from decimal import Decimal
 
     try:
         reservation = Reservation.objects.select_related('patient', 'branch').get(pk=pk)
     except Reservation.DoesNotExist:
         return Response({'error': 'Reservation not found.'}, status=status.HTTP_404_NOT_FOUND)
 
-    doctor_id      = request.data.get('doctor_id')
-    patient_id     = request.data.get('patient_id')
-    is_examination = bool(request.data.get('is_examination', False))
-    discount       = request.data.get('discount')
-    new_status     = request.data.get('status')
-    medicines      = request.data.get('medicines', [])
-
-    has_medicines = bool(medicines)
+    doctor_id           = request.data.get('doctor_id')
+    patient_id          = request.data.get('patient_id')
+    discount            = request.data.get('discount')
+    medicines           = request.data.get('medicines', [])
+    general_service_ids = request.data.get('general_service_ids', [])
 
     try:
         doctor = Doctor.objects.select_related('user').get(user__pk=doctor_id)
@@ -591,17 +735,40 @@ def api_reservation_prescription(request, pk):
     except Patient.DoesNotExist:
         return Response({'error': 'Patient not found.'}, status=status.HTTP_404_NOT_FOUND)
 
-    # Save is_examination, discount and status on the reservation
-    reservation.is_examination = is_examination
+    # ── Set reservation to finished ───────────────────────────────────────────
     if discount is not None:
         reservation.discount = discount
-    update_fields = ['is_examination', 'discount']
-    if new_status and new_status in [s[0] for s in Reservation.Status.choices]:
-        reservation.status = new_status
-        update_fields.append('status')
-    reservation.save(update_fields=update_fields)
+    reservation.status = Reservation.Status.FINISHED
+    reservation.save(update_fields=['discount', 'status'])
 
-    # Fetch clinic config
+    # ── Collect pricing items ─────────────────────────────────────────────────
+    pricing_items = []
+    for mapping in DermaFaceMapping.objects.filter(reservation_id=pk):
+        pricing_items.extend(_collect_mapping_items(mapping, 'face_mapping'))
+    for mapping in DermaBodyMapping.objects.filter(reservation_id=pk):
+        pricing_items.extend(_collect_mapping_items(mapping, 'body_mapping'))
+    if general_service_ids:
+        for gs in GeneralService.objects.filter(pk__in=general_service_ids):
+            pricing_items.append({
+                'source': 'general_service', 'zone_label': None, 'service_name': None,
+                'line_type': 'general_service', 'name': gs.name,
+                'detail': '1 service', 'unit_price': str(gs.price), 'total': str(gs.price),
+            })
+
+    subtotal = sum(Decimal(i['total']) for i in pricing_items)
+    discount_pct = Decimal(str(discount)) if discount else None
+    discount_val = (subtotal * discount_pct / Decimal('100')).quantize(Decimal('0.01')) if discount_pct else None
+    total = subtotal - discount_val if discount_val else subtotal
+
+    # ── Create invoice ────────────────────────────────────────────────────────
+    invoice = Invoice.objects.create(
+        reservation=reservation,
+        subtotal=subtotal,
+        discount=discount_val,
+        total=total,
+    )
+
+    # ── Fetch clinic config ───────────────────────────────────────────────────
     config      = Configuration.objects.first()
     clinic_name = config.clinic_name if config else ''
     logo_url    = None
@@ -611,55 +778,64 @@ def api_reservation_prescription(request, pk):
         except Exception:
             pass
 
-    # Generate PDF
-    pdf_bytes = _generate_prescription_pdf(
-        doctor_name=doctor.user.name,
-        patient_name=patient.full_name,
-        medicines=medicines,
-        is_examination=is_examination,
-        discount=discount,
+    timestamp   = datetime.now().strftime('%Y-%m-%d')
+    doctor_name = doctor.user.name
+    patient_name = patient.full_name
+
+    # ── Generate & upload invoice PDF ─────────────────────────────────────────
+    invoice_pdf = _generate_invoice_pdf(
+        doctor_name=doctor_name,
+        patient_name=patient_name,
+        items=pricing_items,
+        subtotal=str(subtotal),
+        discount=str(discount_val) if discount_val else None,
+        total=str(total),
         clinic_name=clinic_name,
         logo_url=logo_url,
     )
-
-    from django.http import HttpResponse
-    import cloudinary.uploader, tempfile, os
-    timestamp = datetime.now().strftime('%Y-%m-%d')
-    filename  = f'prescription_{pk}_{timestamp}.pdf'
-
-    # Save as attachment only when medicines are provided
-    if not has_medicines:
-        response = HttpResponse(pdf_bytes, content_type='application/pdf')
-        response['Content-Disposition'] = f'attachment; filename="{filename}"'
-        return response
-
+    invoice_url = None
     try:
-        with tempfile.NamedTemporaryFile(suffix='.pdf', delete=False) as tmp:
-            tmp.write(pdf_bytes)
-            tmp_path = tmp.name
-        try:
-            result = cloudinary.uploader.upload(
-                tmp_path,
-                resource_type='raw',
-                folder='prescriptions',
-                public_id=filename,
-                type='upload',
-                access_mode='public',
-            )
-            ReservationAttachment.objects.create(
-                reservation=reservation,
-                uploaded_by=request.user,
-                url=result['secure_url'],
-                name=f'Prescription_{timestamp}',
-            )
-        finally:
-            os.unlink(tmp_path)
+        invoice_url = _upload_pdf_to_cloudinary(
+            invoice_pdf, 'invoices', f'invoice_{pk}_{timestamp}.pdf'
+        )
+        ReservationAttachment.objects.create(
+            reservation=reservation, uploaded_by=request.user,
+            url=invoice_url, name=f'Invoice_{timestamp}',
+        )
     except Exception:
         pass
 
-    response = HttpResponse(pdf_bytes, content_type='application/pdf')
-    response['Content-Disposition'] = f'attachment; filename="{filename}"'
-    return response
+    # ── Generate & upload prescription PDF (only if medicines provided) ───────
+    prescription_url = None
+    if medicines:
+        prescription_pdf = _generate_prescription_pdf(
+            doctor_name=doctor_name,
+            patient_name=patient_name,
+            medicines=medicines,
+            clinic_name=clinic_name,
+            logo_url=logo_url,
+        )
+        try:
+            prescription_url = _upload_pdf_to_cloudinary(
+                prescription_pdf, 'prescriptions', f'prescription_{pk}_{timestamp}.pdf'
+            )
+            ReservationAttachment.objects.create(
+                reservation=reservation, uploaded_by=request.user,
+                url=prescription_url, name=f'Prescription_{timestamp}',
+            )
+        except Exception:
+            pass
+
+    return Response({
+        'invoice_id':          invoice.id,
+        'invoice_status':      invoice.status,
+        'subtotal':            str(subtotal),
+        'discount_percentage': str(discount_pct) if discount_pct else None,
+        'discount_amount':     str(discount_val) if discount_val else None,
+        'total':               str(total),
+        'invoice_url':         invoice_url,
+        'prescription_url':    prescription_url,
+    }, status=status.HTTP_201_CREATED)
 
 
 # ─── Reservation Summary ──────────────────────────────────────────────────────
@@ -1029,12 +1205,9 @@ def _price_line(line):
         if not product:
             return None
         if line.product_type == 'veil':
-            if not product.volume or product.volume == 0:
-                return None
-            unit = (product.price / product.volume).quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)
             vol   = dec(line.volume_ml)
-            total = (unit * vol).quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)
-            return {'detail': f'{line.volume_ml} ml', 'unit_price': str(unit), 'total': str(total)}
+            total = (product.price * vol).quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)
+            return {'detail': f'{line.volume_ml} ml', 'unit_price': str(product.price), 'total': str(total)}
         elif line.product_type == 'syringe':
             qty   = dec(line.quantity or 1)
             total = (product.price * qty).quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)
