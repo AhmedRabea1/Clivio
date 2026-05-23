@@ -740,6 +740,8 @@ def api_reservation_prescription(request, pk):
         reservation.discount = discount
     reservation.status = Reservation.Status.FINISHED
     reservation.save(update_fields=['discount', 'status'])
+    if general_service_ids:
+        reservation.general_services.set(general_service_ids)
 
     # ── Collect pricing items ─────────────────────────────────────────────────
     pricing_items = []
@@ -760,12 +762,10 @@ def api_reservation_prescription(request, pk):
     discount_val = (subtotal * discount_pct / Decimal('100')).quantize(Decimal('0.01')) if discount_pct else None
     total = subtotal - discount_val if discount_val else subtotal
 
-    # ── Create invoice ────────────────────────────────────────────────────────
-    invoice = Invoice.objects.create(
+    # ── Create or update invoice ──────────────────────────────────────────────
+    invoice, _ = Invoice.objects.update_or_create(
         reservation=reservation,
-        subtotal=subtotal,
-        discount=discount_val,
-        total=total,
+        defaults={'subtotal': subtotal, 'discount': discount_val, 'total': total},
     )
 
     # ── Fetch clinic config ───────────────────────────────────────────────────
@@ -875,14 +875,14 @@ def api_reservation_summary(request):
             'medical_notes': patient.medical_notes or None,
         },
         'reservation': {
-            'id':            reservation.id,
-            'status':        reservation.status,
-            'date_of_visit': reservation.date_of_visit,
-            'slot':          reservation.slot.strftime('%H:%M') if reservation.slot else None,
-            'doctor_name':   reservation.doctor.user.name if reservation.doctor else None,
-            'branch_name':   reservation.branch.name,
-            'discount':      reservation.discount,
-            'is_examination': reservation.is_examination,
+            'id':                  reservation.id,
+            'status':              reservation.status,
+            'date_of_visit':       reservation.date_of_visit,
+            'slot':                reservation.slot.strftime('%H:%M') if reservation.slot else None,
+            'doctor_name':         reservation.doctor.user.name if reservation.doctor else None,
+            'branch_name':         reservation.branch.name,
+            'discount':            reservation.discount,
+            'general_service_ids': list(reservation.general_services.values_list('id', flat=True)),
         },
         'attachments': ReservationAttachmentSerializer(attachments, many=True, context={'request': request}).data,
     })

@@ -65,12 +65,15 @@ class Reservation(models.Model):
         null=True, blank=True,
         related_name='reservations',
     )
-    date_of_visit  = models.DateField()
-    slot           = models.TimeField(null=True, blank=True)
-    status         = models.CharField(max_length=20, choices=Status.choices, default=Status.PENDING)
-    is_examination = models.BooleanField(default=False)
-    discount       = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True)
-    created_at     = models.DateTimeField(auto_now_add=True)
+    date_of_visit    = models.DateField()
+    slot             = models.TimeField(null=True, blank=True)
+    status           = models.CharField(max_length=20, choices=Status.choices, default=Status.PENDING)
+    is_examination   = models.BooleanField(default=False)
+    discount         = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True)
+    general_services = models.ManyToManyField(
+        'accounts.GeneralService', blank=True, related_name='reservations'
+    )
+    created_at       = models.DateTimeField(auto_now_add=True)
 
     class Meta:
         ordering = ['date_of_visit', 'slot']
