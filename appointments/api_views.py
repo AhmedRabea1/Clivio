@@ -1014,3 +1014,116 @@ def api_derma_body_mapping_line_detail(request, pk):
 
     line.delete()
     return Response(status=status.HTTP_204_NO_CONTENT)
+
+
+# ─── Reservation Pricing ──────────────────────────────────────────────────────
+
+def _price_line(line):
+    from decimal import Decimal, ROUND_HALF_UP
+
+    def dec(v):
+        return Decimal(str(v or 0))
+
+    if line.line_type == 'product' or (line.line_type == 'machine' and line.machine_type == 'injectables'):
+        product = line.product
+        if not product:
+            return None
+        if line.product_type == 'veil':
+            if not product.volume or product.volume == 0:
+                return None
+            unit = (product.price / product.volume).quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)
+            vol   = dec(line.volume_ml)
+            total = (unit * vol).quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)
+            return {'detail': f'{line.volume_ml} ml', 'unit_price': str(unit), 'total': str(total)}
+        elif line.product_type == 'syringe':
+            qty   = dec(line.quantity or 1)
+            total = (product.price * qty).quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)
+            return {'detail': f'{line.quantity} syringe(s)', 'unit_price': str(product.price), 'total': str(total)}
+
+    elif line.line_type == 'machine':
+        machine = line.machine
+        if not machine:
+            return None
+        if line.machine_type == 'pulses':
+            pulses = dec(line.pulses)
+            total  = (machine.price * pulses).quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)
+            return {'detail': f'{line.pulses} pulses', 'unit_price': str(machine.price), 'total': str(total)}
+        elif line.machine_type == 'duration':
+            mins  = dec(line.minutes)
+            total = (machine.price * mins).quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)
+            return {'detail': f'{line.minutes} minutes', 'unit_price': str(machine.price), 'total': str(total)}
+        elif line.machine_type == 'sessions':
+            return {'detail': '1 session', 'unit_price': str(machine.price), 'total': str(machine.price)}
+
+    return None
+
+
+def _collect_mapping_items(mapping, source):
+    items = []
+    for zone in mapping.zones.prefetch_related(
+        'zone_services__lines__product',
+        'zone_services__lines__machine',
+        'zone_services__service',
+    ).all():
+        for zone_service in zone.zone_services.all():
+            for line in zone_service.lines.all():
+                pricing = _price_line(line)
+                if not pricing:
+                    continue
+                name = (
+                    line.product.name if line.product_id else
+                    line.machine.name if line.machine_id else ''
+                )
+                items.append({
+                    'source':       source,
+                    'zone_label':   zone.zone_label,
+                    'service_name': zone_service.service.name if zone_service.service_id else None,
+                    'line_type':    line.line_type,
+                    'name':         name,
+                    **pricing,
+                })
+    return items
+
+
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+def api_reservation_pricing(request):
+    from decimal import Decimal
+    from accounts.models import GeneralService
+
+    reservation_id       = request.data.get('reservation_id')
+    general_service_ids  = request.data.get('general_service_ids', [])
+
+    if not reservation_id:
+        return Response({'error': 'reservation_id is required.'}, status=status.HTTP_400_BAD_REQUEST)
+
+    items = []
+
+    # Face mapping lines
+    for mapping in DermaFaceMapping.objects.filter(reservation_id=reservation_id):
+        items.extend(_collect_mapping_items(mapping, 'face_mapping'))
+
+    # Body mapping lines
+    for mapping in DermaBodyMapping.objects.filter(reservation_id=reservation_id):
+        items.extend(_collect_mapping_items(mapping, 'body_mapping'))
+
+    # Selected general services
+    if general_service_ids:
+        for gs in GeneralService.objects.filter(pk__in=general_service_ids):
+            items.append({
+                'source':     'general_service',
+                'zone_label': None,
+                'service_name': None,
+                'line_type':  'general_service',
+                'name':       gs.name,
+                'detail':     '1 service',
+                'unit_price': str(gs.price),
+                'total':      str(gs.price),
+            })
+
+    grand_total = sum(Decimal(i['total']) for i in items)
+
+    return Response({
+        'items':       items,
+        'grand_total': str(grand_total.quantize(Decimal('0.01'))),
+    })
