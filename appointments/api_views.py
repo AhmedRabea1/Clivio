@@ -798,6 +798,9 @@ def api_reservation_prescription(request, pk):
         invoice_url = _upload_pdf_to_cloudinary(
             invoice_pdf, 'invoices', f'invoice_{pk}_{timestamp}.pdf'
         )
+        ReservationAttachment.objects.filter(
+            reservation=reservation, name__startswith='Invoice_'
+        ).delete()
         ReservationAttachment.objects.create(
             reservation=reservation, uploaded_by=request.user,
             url=invoice_url, name=f'Invoice_{timestamp}',
@@ -819,6 +822,9 @@ def api_reservation_prescription(request, pk):
             prescription_url = _upload_pdf_to_cloudinary(
                 prescription_pdf, 'prescriptions', f'prescription_{pk}_{timestamp}.pdf'
             )
+            ReservationAttachment.objects.filter(
+                reservation=reservation, name__startswith='Prescription_'
+            ).delete()
             ReservationAttachment.objects.create(
                 reservation=reservation, uploaded_by=request.user,
                 url=prescription_url, name=f'Prescription_{timestamp}',
@@ -836,6 +842,37 @@ def api_reservation_prescription(request, pk):
         'invoice_url':         invoice_url,
         'prescription_url':    prescription_url,
     }, status=status.HTTP_201_CREATED)
+
+
+# ─── Invoices ─────────────────────────────────────────────────────────────────
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def api_invoices(request):
+    branch_id = request.query_params.get('branch_id', '').strip()
+    qs = Invoice.objects.select_related('reservation__patient', 'reservation__branch', 'reservation__doctor__user').prefetch_related('reservation__attachments')
+    if branch_id:
+        qs = qs.filter(reservation__branch_id=branch_id)
+    paginator = PageNumberPagination()
+    paginator.page_size = 20
+    page = paginator.paginate_queryset(qs, request)
+    data = [
+        {
+            'id':             inv.id,
+            'status':         inv.status,
+            'subtotal':       str(inv.subtotal),
+            'discount':       str(inv.discount) if inv.discount else None,
+            'total':          str(inv.total),
+            'created_at':     inv.created_at,
+            'reservation_id': inv.reservation_id,
+            'patient_name':   inv.reservation.patient.full_name,
+            'branch_name':    inv.reservation.branch.name,
+            'doctor_name':    inv.reservation.doctor.user.name if inv.reservation.doctor else None,
+            'invoice_url':    inv.reservation.attachments.filter(name__startswith='Invoice_').values_list('url', flat=True).first(),
+        }
+        for inv in page
+    ]
+    return paginator.get_paginated_response(data)
 
 
 # ─── Invoice Pay ─────────────────────────────────────────────────────────────

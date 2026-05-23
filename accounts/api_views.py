@@ -146,10 +146,12 @@ def api_login(request):
 
     if user.role == User.Role.ASSISTANT:
         try:
-            roles = list(user.assistant_profile.roles.values('id', 'role_name'))
-            user_data['roles'] = roles
+            assistant = user.assistant_profile
+            user_data['roles']      = list(assistant.roles.values('id', 'role_name'))
+            user_data['branch_ids'] = list(assistant.branches.values_list('id', flat=True))
         except Exception:
-            user_data['roles'] = []
+            user_data['roles']      = []
+            user_data['branch_ids'] = []
 
     return Response({
         'access': tokens['access'],
@@ -449,7 +451,7 @@ def api_assistants(request):
     if request.method == 'GET':
         assistants = Assistant.objects.filter(
             user__clinic=request.user.clinic
-        ).select_related('user', 'branch').prefetch_related('roles')
+        ).select_related('user').prefetch_related('branches', 'roles')
         return Response(AssistantSerializer(assistants, many=True).data)
 
     serializer = AssistantCreateSerializer(data=request.data, context={'request': request})
@@ -468,7 +470,7 @@ def api_assistant_detail(request, pk):
     DELETE /api/assistants/:id  — delete assistant
     """
     try:
-        assistant = Assistant.objects.select_related('user', 'branch').prefetch_related('roles').get(
+        assistant = Assistant.objects.select_related('user').prefetch_related('branches', 'roles').get(
             user__pk=pk, user__clinic=request.user.clinic
         )
     except Assistant.DoesNotExist:

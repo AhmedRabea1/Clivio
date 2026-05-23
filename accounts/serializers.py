@@ -231,7 +231,7 @@ class AssistantSerializer(serializers.ModelSerializer):
     date_joined = serializers.DateTimeField(source='user.date_joined', read_only=True)
     clinic = serializers.IntegerField(source='user.clinic_id', read_only=True)
     clinic_name = serializers.CharField(source='user.clinic.name', read_only=True)
-    branch = serializers.SerializerMethodField()
+    branches = serializers.SerializerMethodField()
     roles = AssistantRoleSerializer(many=True, read_only=True)
 
     class Meta:
@@ -239,14 +239,12 @@ class AssistantSerializer(serializers.ModelSerializer):
         fields = (
             'id', 'name', 'email', 'phone',
             'clinic', 'clinic_name',
-            'branch', 'roles',
+            'branches', 'roles',
             'is_active', 'date_joined',
         )
 
-    def get_branch(self, obj):
-        if obj.branch:
-            return {'id': obj.branch.id, 'name': obj.branch.name}
-        return None
+    def get_branches(self, obj):
+        return [{'id': b.id, 'name': b.name} for b in obj.branches.all()]
 
 
 class AssistantCreateSerializer(serializers.Serializer):
@@ -254,7 +252,9 @@ class AssistantCreateSerializer(serializers.Serializer):
     email = serializers.EmailField()
     phone = serializers.CharField(max_length=30)
     password = serializers.CharField(write_only=True, min_length=6)
-    branch_id = serializers.IntegerField(required=False, allow_null=True, default=None)
+    branch_ids = serializers.ListField(
+        child=serializers.IntegerField(), required=False, default=list
+    )
     is_active = serializers.BooleanField(required=False, default=True)
     role_ids = serializers.ListField(
         child=serializers.IntegerField(), required=False, default=list
@@ -269,13 +269,15 @@ class AssistantCreateSerializer(serializers.Serializer):
             raise serializers.ValidationError('This email is already registered.')
         return value.lower()
 
-    def validate_branch_id(self, value):
-        if value is None:
+    def validate_branch_ids(self, value):
+        if not value:
             return value
         from branches.models import Branch
         request = self.context.get('request')
-        if not Branch.objects.filter(pk=value, clinic=request.user.clinic, is_active=True).exists():
-            raise serializers.ValidationError('Invalid or inactive branch.')
+        valid_ids = set(Branch.objects.filter(pk__in=value, clinic=request.user.clinic, is_active=True).values_list('id', flat=True))
+        invalid = set(value) - valid_ids
+        if invalid:
+            raise serializers.ValidationError(f'Invalid or inactive branch IDs: {list(invalid)}')
         return value
 
     def validate_role_ids(self, value):
@@ -286,10 +288,9 @@ class AssistantCreateSerializer(serializers.Serializer):
         return value
 
     def create(self, validated_data):
-        from branches.models import Branch
         request = self.context.get('request')
-        role_ids = validated_data.pop('role_ids', [])
-        branch_id = validated_data.pop('branch_id', None)
+        role_ids   = validated_data.pop('role_ids', [])
+        branch_ids = validated_data.pop('branch_ids', [])
 
         user = User.objects.create_user(
             email=validated_data['email'],
@@ -301,16 +302,16 @@ class AssistantCreateSerializer(serializers.Serializer):
             is_active=validated_data.get('is_active', True),
             must_change_password=True,
         )
-        branch = Branch.objects.filter(pk=branch_id).first() if branch_id else None
-        assistant = Assistant.objects.create(user=user, branch=branch)
+        assistant = Assistant.objects.create(user=user)
+        if branch_ids:
+            assistant.branches.set(branch_ids)
         if role_ids:
             assistant.roles.set(role_ids)
         return assistant
 
     def update(self, instance, validated_data):
-        from branches.models import Branch
-        role_ids = validated_data.pop('role_ids', None)
-        branch_id = validated_data.pop('branch_id', ...)
+        role_ids   = validated_data.pop('role_ids', None)
+        branch_ids = validated_data.pop('branch_ids', ...)
 
         user = instance.user
         user.name = validated_data.get('name', user.name)
@@ -320,8 +321,8 @@ class AssistantCreateSerializer(serializers.Serializer):
             user.email = validated_data['email']
         user.save()
 
-        if branch_id is not ...:
-            instance.branch = Branch.objects.filter(pk=branch_id).first() if branch_id else None
+        if branch_ids is not ...:
+            instance.branches.set(branch_ids or [])
         if role_ids is not None:
             instance.roles.set(role_ids)
         instance.save()

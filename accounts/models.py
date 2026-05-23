@@ -91,10 +91,9 @@ class Assistant(models.Model):
         on_delete=models.CASCADE,
         related_name='assistant_profile',
     )
-    branch = models.ForeignKey(
+    branches = models.ManyToManyField(
         'branches.Branch',
-        on_delete=models.SET_NULL,
-        null=True, blank=True,
+        blank=True,
         related_name='assistants',
     )
     roles = models.ManyToManyField(
