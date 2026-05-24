@@ -1,6 +1,9 @@
 from datetime import datetime, timedelta
+from contextvars import ContextVar
 
 from django.db.models import Q
+
+_current_request = ContextVar('_current_request', default=None)
 from rest_framework import status
 from rest_framework.decorators import api_view, permission_classes
 from rest_framework.pagination import PageNumberPagination
@@ -689,22 +692,18 @@ def _generate_prescription_pdf(doctor_name, patient_name, medicines, clinic_name
 
 
 def _upload_pdf_to_cloudinary(pdf_bytes, folder, public_id):
-    import cloudinary.uploader, tempfile, os
-    with tempfile.NamedTemporaryFile(suffix='.pdf', delete=False) as tmp:
-        tmp.write(pdf_bytes)
-        tmp_path = tmp.name
-    try:
-        result = cloudinary.uploader.upload(
-            tmp_path,
-            resource_type='raw',
-            folder=folder,
-            public_id=public_id,
-            type='upload',
-            access_mode='public',
-        )
-        return result['secure_url']
-    finally:
-        os.unlink(tmp_path)
+    import os
+    from django.conf import settings
+    save_dir = os.path.join(settings.MEDIA_ROOT, folder)
+    os.makedirs(save_dir, exist_ok=True)
+    file_path = os.path.join(save_dir, public_id)
+    with open(file_path, 'wb') as f:
+        f.write(pdf_bytes)
+    relative = f'{folder}/{public_id}'
+    request = _current_request.get(None)
+    if request:
+        return request.build_absolute_uri(f'{settings.MEDIA_URL}{relative}')
+    return f'{settings.MEDIA_URL}{relative}'
 
 
 @api_view(['POST'])
@@ -713,6 +712,8 @@ def api_reservation_prescription(request, pk):
     from accounts.models import Doctor, Configuration, GeneralService
     from datetime import datetime
     from decimal import Decimal
+
+    _current_request.set(request)
 
     try:
         reservation = Reservation.objects.select_related('patient', 'branch').get(pk=pk)
