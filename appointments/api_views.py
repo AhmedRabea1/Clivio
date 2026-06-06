@@ -16,7 +16,7 @@ from .models import (
     Reservation, Patient, ReservationAttachment, Invoice,
     DermaFaceMapping, DermaFaceMappingZone, DermaFaceMappingZoneService, DermaFaceMappingLine,
     DermaBodyMapping, DermaBodyMappingZone, DermaBodyMappingZoneService, DermaBodyMappingLine,
-    ZoneDefinition, BodyZoneDefinition,
+    ZoneDefinition, BodyZoneDefinition, PatientPulsePackage, PatientAreaPackage,
 )
 from .serializers import (
     PublicReservationCreateSerializer, ReservationSerializer, ReservationUpdateSerializer,
@@ -29,10 +29,48 @@ from .serializers import (
 
 def _set_patient_packages(patient, packages_data):
     from accounts.models import PulsePackage, AreaPackage
-    pulse_ids = [p['package_id'] for p in packages_data if p.get('type') == 1]
-    area_ids  = [p['package_id'] for p in packages_data if p.get('type') == 2]
-    patient.pulse_packages.set(PulsePackage.objects.filter(pk__in=pulse_ids))
-    patient.area_packages.set(AreaPackage.objects.filter(pk__in=area_ids))
+    from decimal import Decimal
+
+    for item in packages_data:
+        pkg_type   = item.get('type')
+        package_id = item.get('package_id')
+
+        if pkg_type == 1:
+            package = PulsePackage.objects.filter(pk=package_id).first()
+            if not package:
+                continue
+            # Skip if already assigned
+            if PatientPulsePackage.objects.filter(patient=patient, package=package).exists():
+                continue
+            PatientPulsePackage.objects.create(
+                patient=patient,
+                package=package,
+                total_pulses=package.pulses,
+                remaining_pulses=package.pulses,
+            )
+            patient.pulse_packages.add(package)
+            Invoice.objects.create(
+                patient=patient,
+                subtotal=package.price,
+                total=package.price,
+            )
+
+        elif pkg_type == 2:
+            package = AreaPackage.objects.filter(pk=package_id).first()
+            if not package:
+                continue
+            if PatientAreaPackage.objects.filter(patient=patient, package=package).exists():
+                continue
+            PatientAreaPackage.objects.create(
+                patient=patient,
+                package=package,
+            )
+            patient.area_packages.add(package)
+            Invoice.objects.create(
+                patient=patient,
+                subtotal=package.price,
+                total=package.price,
+            )
 
 
 # ─── Patient endpoints ─────────────────────────────────────────────────────────
@@ -725,6 +763,7 @@ def api_reservation_prescription(request, pk):
     discount            = request.data.get('discount')
     medicines           = request.data.get('medicines', [])
     general_service_ids = request.data.get('general_service_ids', [])
+    used_packages       = request.data.get('used_packages', [])
 
     try:
         doctor = Doctor.objects.select_related('user').get(user__pk=doctor_id)
@@ -743,6 +782,26 @@ def api_reservation_prescription(request, pk):
     reservation.save(update_fields=['discount', 'status'])
     if general_service_ids:
         reservation.general_services.set(general_service_ids)
+
+    # ── Apply package usage ───────────────────────────────────────────────────
+    for pkg in used_packages:
+        record_id = pkg.get('record_id')
+        pkg_type  = pkg.get('type')
+        if pkg_type == 1:
+            used_pulses = pkg.get('used_pulses', 0)
+            try:
+                record = PatientPulsePackage.objects.get(pk=record_id, patient=patient)
+                record.remaining_pulses = max(0, record.remaining_pulses - used_pulses)
+                record.save(update_fields=['remaining_pulses'])
+            except PatientPulsePackage.DoesNotExist:
+                pass
+        elif pkg_type == 2:
+            try:
+                record = PatientAreaPackage.objects.get(pk=record_id, patient=patient)
+                record.is_used = True
+                record.save(update_fields=['is_used'])
+            except PatientAreaPackage.DoesNotExist:
+                pass
 
     # ── Collect pricing items ─────────────────────────────────────────────────
     pricing_items = []
@@ -852,7 +911,7 @@ def api_reservation_prescription(request, pk):
 def api_invoices(request):
     branch_id = request.query_params.get('branch_id', '').strip()
     status_filter = request.query_params.get('status', '').strip()
-    qs = Invoice.objects.select_related('reservation__patient', 'reservation__branch', 'reservation__doctor__user').prefetch_related('reservation__attachments')
+    qs = Invoice.objects.select_related('reservation__patient', 'reservation__branch', 'reservation__doctor__user', 'patient').prefetch_related('reservation__attachments')
     if branch_id:
         qs = qs.filter(reservation__branch_id=branch_id)
     if status_filter in (Invoice.Status.PENDING, Invoice.Status.PAID):
@@ -868,11 +927,12 @@ def api_invoices(request):
             'discount':       str(inv.discount) if inv.discount else None,
             'total':          str(inv.total),
             'created_at':     inv.created_at,
+            'type':           'reservation' if inv.reservation_id else 'package',
             'reservation_id': inv.reservation_id,
-            'patient_name':   inv.reservation.patient.full_name,
-            'branch_name':    inv.reservation.branch.name,
-            'doctor_name':    inv.reservation.doctor.user.name if inv.reservation.doctor else None,
-            'invoice_url':    inv.reservation.attachments.filter(name__startswith='Invoice_').values_list('url', flat=True).first(),
+            'patient_name':   (inv.reservation.patient.full_name if inv.reservation else (inv.patient.full_name if inv.patient else None)),
+            'branch_name':    inv.reservation.branch.name if inv.reservation else None,
+            'doctor_name':    inv.reservation.doctor.user.name if inv.reservation and inv.reservation.doctor else None,
+            'invoice_url':    inv.reservation.attachments.filter(name__startswith='Invoice_').values_list('url', flat=True).first() if inv.reservation else None,
         }
         for inv in page
     ]
@@ -989,6 +1049,32 @@ def api_patient_profile(request):
         reservation__patient=patient
     ).order_by('-created_at')
 
+    pulse_records = PatientPulsePackage.objects.select_related('package').filter(patient=patient)
+    area_records  = PatientAreaPackage.objects.select_related('package').filter(patient=patient)
+
+    packages = []
+    for r in pulse_records:
+        packages.append({
+            'type':              1,
+            'record_id':         r.id,
+            'package_id':        r.package.id,
+            'description':       r.package.description,
+            'total_pulses':      r.total_pulses,
+            'remaining_pulses':  r.remaining_pulses,
+            'used_pulses':       r.total_pulses - r.remaining_pulses,
+            'price':             str(r.package.price),
+        })
+    for r in area_records:
+        packages.append({
+            'type':        2,
+            'record_id':   r.id,
+            'package_id':  r.package.id,
+            'name':        r.package.name,
+            'description': r.package.description,
+            'is_used':     r.is_used,
+            'price':       str(r.package.price),
+        })
+
     return Response({
         'patient': {
             'id':            patient.id,
@@ -997,6 +1083,7 @@ def api_patient_profile(request):
             'mobile':        patient.mobile_number,
             'medical_notes': patient.medical_notes or None,
         },
+        'packages':    packages,
         'attachments': ReservationAttachmentSerializer(attachments, many=True, context={'request': request}).data,
     })
 

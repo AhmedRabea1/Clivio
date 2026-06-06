@@ -87,7 +87,8 @@ class Invoice(models.Model):
         PENDING = 'pending', 'Pending'
         PAID    = 'paid',    'Paid'
 
-    reservation = models.ForeignKey(Reservation, on_delete=models.CASCADE, related_name='invoices')
+    reservation = models.ForeignKey(Reservation, on_delete=models.CASCADE, related_name='invoices', null=True, blank=True)
+    patient     = models.ForeignKey(Patient, on_delete=models.CASCADE, related_name='invoices', null=True, blank=True)
     subtotal    = models.DecimalField(max_digits=10, decimal_places=2)
     discount    = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True)
     total       = models.DecimalField(max_digits=10, decimal_places=2)
@@ -98,7 +99,34 @@ class Invoice(models.Model):
         ordering = ['-created_at']
 
     def __str__(self):
-        return f'Invoice {self.pk} — {self.reservation}'
+        return f'Invoice {self.pk} — {self.reservation or self.patient}'
+
+
+class PatientPulsePackage(models.Model):
+    patient          = models.ForeignKey(Patient, on_delete=models.CASCADE, related_name='pulse_package_records')
+    package          = models.ForeignKey('accounts.PulsePackage', on_delete=models.CASCADE, related_name='patient_records')
+    total_pulses     = models.PositiveIntegerField()
+    remaining_pulses = models.PositiveIntegerField()
+    created_at       = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['-created_at']
+
+    def __str__(self):
+        return f'{self.patient} — {self.package} ({self.remaining_pulses}/{self.total_pulses})'
+
+
+class PatientAreaPackage(models.Model):
+    patient    = models.ForeignKey(Patient, on_delete=models.CASCADE, related_name='area_package_records')
+    package    = models.ForeignKey('accounts.AreaPackage', on_delete=models.CASCADE, related_name='patient_records')
+    is_used    = models.BooleanField(default=False)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['-created_at']
+
+    def __str__(self):
+        return f'{self.patient} — {self.package} ({"used" if self.is_used else "active"})'
 
 
 class ReservationAttachment(models.Model):

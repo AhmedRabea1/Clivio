@@ -3,6 +3,7 @@ from .models import (
     Patient, Reservation, ReservationAttachment,
     DermaFaceMappingLine, DermaFaceMappingZoneService, DermaFaceMappingZone, DermaFaceMapping,
     DermaBodyMappingLine, DermaBodyMappingZoneService, DermaBodyMappingZone, DermaBodyMapping,
+    PatientPulsePackage, PatientAreaPackage,
 )
 
 
@@ -51,10 +52,27 @@ class PatientSerializer(serializers.ModelSerializer):
 
     def get_packages(self, obj):
         result = []
-        for p in obj.pulse_packages.all():
-            result.append({'type': 1, 'package_id': p.id, 'pulses': p.pulses, 'price': str(p.price), 'description': p.description})
-        for p in obj.area_packages.all():
-            result.append({'type': 2, 'package_id': p.id, 'name': p.name, 'price': str(p.price), 'description': p.description})
+        for r in obj.pulse_package_records.select_related('package').all():
+            result.append({
+                'type': 1,
+                'record_id': r.id,
+                'package_id': r.package.id,
+                'pulses': r.package.pulses,
+                'total_pulses': r.total_pulses,
+                'remaining_pulses': r.remaining_pulses,
+                'price': str(r.package.price),
+                'description': r.package.description,
+            })
+        for r in obj.area_package_records.select_related('package').all():
+            result.append({
+                'type': 2,
+                'record_id': r.id,
+                'package_id': r.package.id,
+                'name': r.package.name,
+                'is_used': r.is_used,
+                'price': str(r.package.price),
+                'description': r.package.description,
+            })
         return result
 
 
