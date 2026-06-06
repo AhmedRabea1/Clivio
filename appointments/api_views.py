@@ -972,6 +972,7 @@ def api_invoices(request):
             'patient_name':       (inv.reservation.patient.full_name if inv.reservation else (inv.patient.full_name if inv.patient else None)),
             'branch_name':        inv.reservation.branch.name if inv.reservation else None,
             'doctor_name':        inv.reservation.doctor.user.name if inv.reservation and inv.reservation.doctor else None,
+            'invoice_url':        inv.reservation.attachments.filter(name__startswith='Invoice_').values_list('url', flat=True).first() if inv.reservation else None,
         }
         for inv in page
     ]
