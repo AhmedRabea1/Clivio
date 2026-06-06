@@ -859,10 +859,12 @@ def api_reservation_prescription(request, pk):
     discount_val = (subtotal * discount_pct / Decimal('100')).quantize(Decimal('0.01')) if discount_pct else None
     total = subtotal - discount_val if discount_val else subtotal
 
-    # ── Create or update invoice ──────────────────────────────────────────────
-    invoice, _ = Invoice.objects.update_or_create(
+    # ── Create invoice ────────────────────────────────────────────────────────
+    invoice = Invoice.objects.create(
         reservation=reservation,
-        defaults={'subtotal': subtotal, 'discount': discount_val, 'total': total},
+        subtotal=subtotal,
+        discount=discount_val,
+        total=total,
     )
 
     # ── Fetch clinic config ───────────────────────────────────────────────────
