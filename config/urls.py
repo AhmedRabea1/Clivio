@@ -40,7 +40,7 @@ from appointments.api_views import (
     api_derma_body_mapping_line_detail,
     api_body_zone_definitions,
     api_reservation_pricing,
-    api_invoices, api_invoice_pay,
+    api_invoices, api_invoice_pay, api_invoice_bulk_pay,
     api_analytics_overview, api_analytics_revenue,
     api_analytics_reservations, api_analytics_doctors,
 )
@@ -141,8 +141,9 @@ api_urlpatterns = [
     path('reservation-pricing', api_reservation_pricing, name='api_reservation_pricing'),
 
     # Invoices
-    path('invoices',              api_invoices,    name='api_invoices'),
-    path('invoices/<int:pk>/pay', api_invoice_pay, name='api_invoice_pay'),
+    path('invoices',              api_invoices,         name='api_invoices'),
+    path('invoices/bulk-pay',     api_invoice_bulk_pay, name='api_invoice_bulk_pay'),
+    path('invoices/<int:pk>/pay', api_invoice_pay,      name='api_invoice_pay'),
 
     # Analytics
     path('analytics/overview',     api_analytics_overview,     name='api_analytics_overview'),

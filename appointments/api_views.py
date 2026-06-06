@@ -54,6 +54,8 @@ def _set_patient_packages(patient, packages_data):
                 patient=patient,
                 subtotal=package.price,
                 total=package.price,
+                paid_amount=package.price,
+                status=Invoice.Status.PAID,
             )
 
         elif pkg_type == 2:
@@ -71,6 +73,8 @@ def _set_patient_packages(patient, packages_data):
                 patient=patient,
                 subtotal=package.price,
                 total=package.price,
+                paid_amount=package.price,
+                status=Invoice.Status.PAID,
             )
 
 
@@ -1094,6 +1098,60 @@ def api_invoice_pay(request, pk):
         'paid_amount':    str(invoice.paid_amount),
         'remaining':      str(invoice.remaining),
         'invoice_url':    invoice_url,
+    })
+
+
+# ─── Invoice Bulk Pay ────────────────────────────────────────────────────────
+
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+def api_invoice_bulk_pay(request):
+    from decimal import Decimal
+
+    patient_id  = request.data.get('patient_id')
+    amount_paid = request.data.get('amount_paid')
+
+    if not patient_id or amount_paid is None:
+        return Response({'error': 'patient_id and amount_paid are required.'}, status=status.HTTP_400_BAD_REQUEST)
+
+    try:
+        patient = Patient.objects.get(pk=patient_id)
+    except Patient.DoesNotExist:
+        return Response({'error': 'Patient not found.'}, status=status.HTTP_404_NOT_FOUND)
+
+    budget = Decimal(str(amount_paid))
+
+    # Get all unpaid reservation invoices for this patient, oldest first
+    invoices = list(
+        Invoice.objects.filter(
+            status__in=[Invoice.Status.PENDING, Invoice.Status.PARTIAL],
+            reservation__patient=patient,
+        ).order_by('created_at')
+    )
+
+    results = []
+    for inv in invoices:
+        if budget <= 0:
+            break
+        owed = inv.remaining
+        pay  = min(budget, owed)
+        inv.paid_amount += pay
+        inv.status = Invoice.Status.PAID if inv.paid_amount >= inv.total else Invoice.Status.PARTIAL
+        inv.save(update_fields=['paid_amount', 'status'])
+        budget -= pay
+        if inv.status == Invoice.Status.PAID and inv.reservation_id:
+            _run_inventory_decrement(inv.reservation_id)
+        results.append({
+            'invoice_id':  inv.id,
+            'status':      inv.status,
+            'paid_amount': str(inv.paid_amount),
+            'remaining':   str(inv.remaining),
+        })
+
+    return Response({
+        'payments':        results,
+        'amount_applied':  str(Decimal(str(amount_paid)) - budget),
+        'leftover':        str(max(Decimal('0'), budget)),
     })
 
 
