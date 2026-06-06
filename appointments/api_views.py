@@ -1,6 +1,7 @@
 from datetime import datetime, timedelta
 from contextvars import ContextVar
 
+from django.db import models as django_models
 from django.db.models import Q
 
 _current_request = ContextVar('_current_request', default=None)
@@ -521,7 +522,7 @@ def api_reservation_attachment_detail(request, pk):
 
 # ─── Prescription PDF ─────────────────────────────────────────────────────────
 
-def _generate_invoice_pdf(doctor_name, patient_name, items, subtotal, discount, total, clinic_name, logo_url):
+def _generate_invoice_pdf(doctor_name, patient_name, items, subtotal, discount, total, clinic_name, logo_url, paid_amount=None, remaining=None, previous_invoices=None):
     from io import BytesIO
     from datetime import date
     from decimal import Decimal
@@ -633,6 +634,11 @@ def _generate_invoice_pdf(doctor_name, patient_name, items, subtotal, discount, 
     if discount:
         totals_data.append([Paragraph('<b>Discount</b>', ParagraphStyle('D', parent=styles['Normal'], fontSize=11, textColor=GREEN)), Paragraph(f'- {discount}', ParagraphStyle('DR', parent=styles['Normal'], fontSize=11, alignment=TA_RIGHT, textColor=GREEN))])
     totals_data.append([Paragraph('<b>Total</b>', ParagraphStyle('T', parent=styles['Normal'], fontSize=13, fontName='Helvetica-Bold', textColor=PRIMARY)), Paragraph(f'<b>{total}</b>', ParagraphStyle('TR', parent=styles['Normal'], fontSize=13, fontName='Helvetica-Bold', alignment=TA_RIGHT, textColor=PRIMARY))])
+    if paid_amount is not None:
+        totals_data.append([Paragraph('<b>Paid</b>', ParagraphStyle('P', parent=styles['Normal'], fontSize=11, textColor=GREEN)), Paragraph(f'{paid_amount}', ParagraphStyle('PR', parent=styles['Normal'], fontSize=11, alignment=TA_RIGHT, textColor=GREEN))])
+    if remaining is not None:
+        RED = HexColor('#DC2626')
+        totals_data.append([Paragraph('<b>Remaining</b>', ParagraphStyle('Rm', parent=styles['Normal'], fontSize=11, textColor=RED)), Paragraph(f'{remaining}', ParagraphStyle('RmR', parent=styles['Normal'], fontSize=11, alignment=TA_RIGHT, textColor=RED))])
 
     totals_tbl = Table(totals_data, colWidths=[13*cm, 3.5*cm])
     totals_tbl.setStyle(TableStyle([
@@ -642,6 +648,33 @@ def _generate_invoice_pdf(doctor_name, patient_name, items, subtotal, discount, 
         ('BOTTOMPADDING', (0,0), (-1,-1), 6),
     ]))
     story.append(totals_tbl)
+
+    # ── Previous invoices summary ──────────────────────────────────────────────
+    if previous_invoices:
+        story.append(Spacer(1, 0.6*cm))
+        story.append(Paragraph('Previous Outstanding Invoices', ParagraphStyle(
+            'PrevSec', fontSize=12, textColor=PRIMARY, fontName='Helvetica-Bold', spaceAfter=6,
+        )))
+        prev_rows = [[Paragraph(h, ParagraphStyle('PH', parent=styles['Normal'], fontSize=9, fontName='Helvetica-Bold', textColor=HexColor('#FFFFFF'))) for h in ['Invoice Date', 'Total', 'Paid', 'Remaining']]]
+        for p in previous_invoices:
+            prev_rows.append([
+                Paragraph(p['date'], CEL),
+                Paragraph(p['total'], RCEL),
+                Paragraph(p['paid'], RCEL),
+                Paragraph(p['remaining'], RCEL),
+            ])
+        prev_tbl = Table(prev_rows, colWidths=[5*cm, 3.5*cm, 3*cm, 3*cm])
+        prev_tbl.setStyle(TableStyle([
+            ('BACKGROUND',    (0,0), (-1,0),  HexColor('#6B7280')),
+            ('ROWBACKGROUNDS',(0,1), (-1,-1), [HexColor('#FFFFFF'), LIGHT]),
+            ('BOX',           (0,0), (-1,-1), 0.5, BORDER),
+            ('INNERGRID',     (0,0), (-1,-1), 0.25, BORDER),
+            ('LEFTPADDING',   (0,0), (-1,-1), 8),
+            ('RIGHTPADDING',  (0,0), (-1,-1), 8),
+            ('TOPPADDING',    (0,0), (-1,-1), 5),
+            ('BOTTOMPADDING', (0,0), (-1,-1), 5),
+        ]))
+        story.append(prev_tbl)
 
     doc.build(story)
     buffer.seek(0)
@@ -829,6 +862,7 @@ def api_reservation_prescription(request, pk):
     )
 
     # ── Fetch clinic config ───────────────────────────────────────────────────
+    # ── Generate & upload prescription PDF (only if medicines provided) ───────
     config      = Configuration.objects.first()
     clinic_name = config.clinic_name if config else ''
     logo_url    = None
@@ -838,37 +872,10 @@ def api_reservation_prescription(request, pk):
         except Exception:
             pass
 
-    timestamp   = datetime.now().strftime('%Y-%m-%d')
-    doctor_name = doctor.user.name
+    timestamp    = datetime.now().strftime('%Y-%m-%d')
+    doctor_name  = doctor.user.name
     patient_name = patient.full_name
 
-    # ── Generate & upload invoice PDF ─────────────────────────────────────────
-    invoice_pdf = _generate_invoice_pdf(
-        doctor_name=doctor_name,
-        patient_name=patient_name,
-        items=pricing_items,
-        subtotal=str(subtotal),
-        discount=str(discount_val) if discount_val else None,
-        total=str(total),
-        clinic_name=clinic_name,
-        logo_url=logo_url,
-    )
-    invoice_url = None
-    try:
-        invoice_url = _upload_pdf_to_cloudinary(
-            invoice_pdf, 'invoices', f'invoice_{pk}_{timestamp}.pdf'
-        )
-        ReservationAttachment.objects.filter(
-            reservation=reservation, name__startswith='Invoice_'
-        ).delete()
-        ReservationAttachment.objects.create(
-            reservation=reservation, uploaded_by=request.user,
-            url=invoice_url, name=f'Invoice_{timestamp}',
-        )
-    except Exception:
-        pass
-
-    # ── Generate & upload prescription PDF (only if medicines provided) ───────
     prescription_url = None
     if medicines:
         prescription_pdf = _generate_prescription_pdf(
@@ -899,7 +906,6 @@ def api_reservation_prescription(request, pk):
         'discount_percentage': str(discount_pct) if discount_pct else None,
         'discount_amount':     str(discount_val) if discount_val else None,
         'total':               str(total),
-        'invoice_url':         invoice_url,
         'prescription_url':    prescription_url,
     }, status=status.HTTP_201_CREATED)
 
@@ -914,25 +920,52 @@ def api_invoices(request):
     qs = Invoice.objects.select_related('reservation__patient', 'reservation__branch', 'reservation__doctor__user', 'patient').prefetch_related('reservation__attachments')
     if branch_id:
         qs = qs.filter(reservation__branch_id=branch_id)
-    if status_filter in (Invoice.Status.PENDING, Invoice.Status.PAID):
+    if status_filter in (Invoice.Status.PENDING, Invoice.Status.PARTIAL, Invoice.Status.PAID):
         qs = qs.filter(status=status_filter)
     paginator = PageNumberPagination()
     paginator.page_size = 20
     page = paginator.paginate_queryset(qs, request)
+
+    from decimal import Decimal
+    from django.db.models import Sum
+
+    def get_patient_id(inv):
+        if inv.reservation:
+            return inv.reservation.patient_id
+        return inv.patient_id
+
+    # Build previous remaining per patient for pending/partial invoices
+    patient_ids = [get_patient_id(inv) for inv in page if get_patient_id(inv)]
+    prev_remaining_map = {}
+    for inv in page:
+        p_id = get_patient_id(inv)
+        if not p_id:
+            continue
+        prev = Invoice.objects.filter(
+            status__in=[Invoice.Status.PENDING, Invoice.Status.PARTIAL],
+        ).filter(
+            django_models.Q(reservation__patient_id=p_id) | django_models.Q(patient_id=p_id)
+        ).exclude(pk=inv.pk).aggregate(s=Sum('total'), paid=Sum('paid_amount'))
+        total_prev  = prev['s'] or Decimal('0')
+        paid_prev   = prev['paid'] or Decimal('0')
+        prev_remaining_map[inv.pk] = max(Decimal('0'), total_prev - paid_prev)
+
     data = [
         {
-            'id':             inv.id,
-            'status':         inv.status,
-            'subtotal':       str(inv.subtotal),
-            'discount':       str(inv.discount) if inv.discount else None,
-            'total':          str(inv.total),
-            'created_at':     inv.created_at,
-            'type':           'reservation' if inv.reservation_id else 'package',
-            'reservation_id': inv.reservation_id,
-            'patient_name':   (inv.reservation.patient.full_name if inv.reservation else (inv.patient.full_name if inv.patient else None)),
-            'branch_name':    inv.reservation.branch.name if inv.reservation else None,
-            'doctor_name':    inv.reservation.doctor.user.name if inv.reservation and inv.reservation.doctor else None,
-            'invoice_url':    inv.reservation.attachments.filter(name__startswith='Invoice_').values_list('url', flat=True).first() if inv.reservation else None,
+            'id':                 inv.id,
+            'status':             inv.status,
+            'subtotal':           str(inv.subtotal),
+            'discount':           str(inv.discount) if inv.discount else None,
+            'total':              str(inv.total),
+            'paid_amount':        str(inv.paid_amount),
+            'remaining':          str(inv.remaining),
+            'previous_remaining': str(prev_remaining_map.get(inv.pk, Decimal('0'))),
+            'created_at':         inv.created_at,
+            'type':               'reservation' if inv.reservation_id else 'package',
+            'reservation_id':     inv.reservation_id,
+            'patient_name':       (inv.reservation.patient.full_name if inv.reservation else (inv.patient.full_name if inv.patient else None)),
+            'branch_name':        inv.reservation.branch.name if inv.reservation else None,
+            'doctor_name':        inv.reservation.doctor.user.name if inv.reservation and inv.reservation.doctor else None,
         }
         for inv in page
     ]
@@ -944,32 +977,124 @@ def api_invoices(request):
 @api_view(['POST'])
 @permission_classes([IsAuthenticated])
 def api_invoice_pay(request, pk):
+    from decimal import Decimal
+    from accounts.models import Configuration
+
+    _current_request.set(request)
+
     try:
-        invoice = Invoice.objects.select_related('reservation').get(pk=pk)
+        invoice = Invoice.objects.select_related('reservation__patient', 'reservation__branch', 'reservation__doctor__user', 'patient').get(pk=pk)
     except Invoice.DoesNotExist:
         return Response({'error': 'Invoice not found.'}, status=status.HTTP_404_NOT_FOUND)
 
     if invoice.status == Invoice.Status.PAID:
         return Response({'error': 'Invoice is already paid.'}, status=status.HTTP_400_BAD_REQUEST)
 
-    invoice.status = Invoice.Status.PAID
-    invoice.save(update_fields=['status'])
+    amount_paid      = request.data.get('amount_paid')
+    prev_payments    = request.data.get('previous_payments', [])  # [{ invoice_id, amount }]
 
-    reservation_id = invoice.reservation_id
-    for mapping in DermaFaceMapping.objects.filter(reservation_id=reservation_id):
-        for zone in mapping.zones.prefetch_related('zone_services__lines__product'):
-            for zs in zone.zone_services.all():
-                for line in zs.lines.all():
-                    if line.line_type == 'product' or (line.line_type == 'machine' and line.machine_type == 'injectables'):
-                        _decrement_product(line)
-    for mapping in DermaBodyMapping.objects.filter(reservation_id=reservation_id):
-        for zone in mapping.zones.prefetch_related('zone_services__lines__product'):
-            for zs in zone.zone_services.all():
-                for line in zs.lines.all():
-                    if line.line_type == 'product' or (line.line_type == 'machine' and line.machine_type == 'injectables'):
-                        _decrement_product(line)
+    if amount_paid is None:
+        return Response({'error': 'amount_paid is required.'}, status=status.HTTP_400_BAD_REQUEST)
 
-    return Response({'invoice_id': invoice.id, 'invoice_status': invoice.status})
+    amount_paid = Decimal(str(amount_paid))
+    invoice.paid_amount = amount_paid
+    invoice.status = Invoice.Status.PAID if amount_paid >= invoice.total else Invoice.Status.PARTIAL
+    invoice.save(update_fields=['paid_amount', 'status'])
+
+    # ── Apply previous invoice payments ──────────────────────────────────────
+    prev_invoice_records = []
+    for pp in prev_payments:
+        try:
+            prev_inv = Invoice.objects.get(pk=pp['invoice_id'])
+            prev_amt = Decimal(str(pp['amount']))
+            prev_inv.paid_amount = min(prev_inv.total, prev_inv.paid_amount + prev_amt)
+            prev_inv.status = Invoice.Status.PAID if prev_inv.paid_amount >= prev_inv.total else Invoice.Status.PARTIAL
+            prev_inv.save(update_fields=['paid_amount', 'status'])
+            prev_invoice_records.append(prev_inv)
+            if prev_inv.status == Invoice.Status.PAID and prev_inv.reservation_id:
+                _run_inventory_decrement(prev_inv.reservation_id)
+        except Invoice.DoesNotExist:
+            pass
+
+    # ── Trigger inventory if current invoice fully paid ───────────────────────
+    if invoice.status == Invoice.Status.PAID and invoice.reservation_id:
+        _run_inventory_decrement(invoice.reservation_id)
+
+    # ── Generate invoice PDF ──────────────────────────────────────────────────
+    config      = Configuration.objects.first()
+    clinic_name = config.clinic_name if config else ''
+    logo_url    = None
+    if config and config.logo:
+        try:
+            logo_url = config.logo.url
+        except Exception:
+            pass
+
+    patient_name = invoice.reservation.patient.full_name if invoice.reservation else (invoice.patient.full_name if invoice.patient else '')
+    doctor_name  = invoice.reservation.doctor.user.name if invoice.reservation and invoice.reservation.doctor else ''
+    timestamp    = datetime.now().strftime('%Y-%m-%d')
+
+    # Build pricing items for current invoice
+    pricing_items = []
+    if invoice.reservation_id:
+        for mapping in DermaFaceMapping.objects.filter(reservation_id=invoice.reservation_id):
+            pricing_items.extend(_collect_mapping_items(mapping, 'face_mapping'))
+        for mapping in DermaBodyMapping.objects.filter(reservation_id=invoice.reservation_id):
+            pricing_items.extend(_collect_mapping_items(mapping, 'body_mapping'))
+        from accounts.models import GeneralService
+        for gs in invoice.reservation.general_services.all():
+            pricing_items.append({
+                'source': 'general_service', 'zone_label': None, 'service_name': None,
+                'line_type': 'general_service', 'name': gs.name,
+                'detail': '1 service', 'unit_price': str(gs.price), 'total': str(gs.price),
+            })
+
+    prev_summary = [
+        {
+            'invoice_id': p.id,
+            'date':       p.created_at.strftime('%Y-%m-%d'),
+            'total':      str(p.total),
+            'paid':       str(p.paid_amount),
+            'remaining':  str(p.remaining),
+        }
+        for p in prev_invoice_records
+    ]
+
+    invoice_pdf = _generate_invoice_pdf(
+        doctor_name=doctor_name,
+        patient_name=patient_name,
+        items=pricing_items,
+        subtotal=str(invoice.subtotal),
+        discount=str(invoice.discount) if invoice.discount else None,
+        total=str(invoice.total),
+        paid_amount=str(invoice.paid_amount),
+        remaining=str(invoice.remaining),
+        clinic_name=clinic_name,
+        logo_url=logo_url,
+        previous_invoices=prev_summary,
+    )
+
+    invoice_url = None
+    try:
+        invoice_url = _upload_pdf_to_cloudinary(
+            invoice_pdf, 'invoices', f'invoice_{pk}_{timestamp}.pdf'
+        )
+        if invoice.reservation:
+            ReservationAttachment.objects.filter(reservation=invoice.reservation, name__startswith='Invoice_').delete()
+            ReservationAttachment.objects.create(
+                reservation=invoice.reservation, uploaded_by=request.user,
+                url=invoice_url, name=f'Invoice_{timestamp}',
+            )
+    except Exception:
+        pass
+
+    return Response({
+        'invoice_id':     invoice.id,
+        'invoice_status': invoice.status,
+        'paid_amount':    str(invoice.paid_amount),
+        'remaining':      str(invoice.remaining),
+        'invoice_url':    invoice_url,
+    })
 
 
 # ─── Reservation Summary ──────────────────────────────────────────────────────
@@ -1352,6 +1477,21 @@ def api_derma_body_mapping_line_detail(request, pk):
 
     line.delete()
     return Response(status=status.HTTP_204_NO_CONTENT)
+
+
+def _run_inventory_decrement(reservation_id):
+    for mapping in DermaFaceMapping.objects.filter(reservation_id=reservation_id):
+        for zone in mapping.zones.prefetch_related('zone_services__lines__product'):
+            for zs in zone.zone_services.all():
+                for line in zs.lines.all():
+                    if line.line_type == 'product' or (line.line_type == 'machine' and line.machine_type == 'injectables'):
+                        _decrement_product(line)
+    for mapping in DermaBodyMapping.objects.filter(reservation_id=reservation_id):
+        for zone in mapping.zones.prefetch_related('zone_services__lines__product'):
+            for zs in zone.zone_services.all():
+                for line in zs.lines.all():
+                    if line.line_type == 'product' or (line.line_type == 'machine' and line.machine_type == 'injectables'):
+                        _decrement_product(line)
 
 
 # ─── Reservation Pricing ──────────────────────────────────────────────────────
