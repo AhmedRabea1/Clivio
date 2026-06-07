@@ -997,33 +997,17 @@ def api_invoice_pay(request, pk):
     if invoice.status == Invoice.Status.PAID:
         return Response({'error': 'Invoice is already paid.'}, status=status.HTTP_400_BAD_REQUEST)
 
-    amount_paid      = request.data.get('amount_paid')
-    prev_payments    = request.data.get('previous_payments', [])  # [{ invoice_id, amount }]
+    amount_paid = request.data.get('amount_paid')
 
     if amount_paid is None:
         return Response({'error': 'amount_paid is required.'}, status=status.HTTP_400_BAD_REQUEST)
 
-    amount_paid = Decimal(str(amount_paid))
-    invoice.paid_amount = amount_paid
-    invoice.status = Invoice.Status.PAID if amount_paid >= invoice.total else Invoice.Status.PARTIAL
+    new_payment = Decimal(str(amount_paid))
+    invoice.paid_amount = min(invoice.total, invoice.paid_amount + new_payment)
+    invoice.status = Invoice.Status.PAID if invoice.paid_amount >= invoice.total else Invoice.Status.PARTIAL
     invoice.save(update_fields=['paid_amount', 'status'])
 
-    # ── Apply previous invoice payments ──────────────────────────────────────
-    prev_invoice_records = []
-    for pp in prev_payments:
-        try:
-            prev_inv = Invoice.objects.get(pk=pp['invoice_id'])
-            prev_amt = Decimal(str(pp['amount']))
-            prev_inv.paid_amount = min(prev_inv.total, prev_inv.paid_amount + prev_amt)
-            prev_inv.status = Invoice.Status.PAID if prev_inv.paid_amount >= prev_inv.total else Invoice.Status.PARTIAL
-            prev_inv.save(update_fields=['paid_amount', 'status'])
-            prev_invoice_records.append(prev_inv)
-            if prev_inv.status == Invoice.Status.PAID and prev_inv.reservation_id:
-                _run_inventory_decrement(prev_inv.reservation_id)
-        except Invoice.DoesNotExist:
-            pass
-
-    # ── Trigger inventory if current invoice fully paid ───────────────────────
+    # ── Trigger inventory when fully paid ─────────────────────────────────────
     if invoice.status == Invoice.Status.PAID and invoice.reservation_id:
         _run_inventory_decrement(invoice.reservation_id)
 
@@ -1056,17 +1040,6 @@ def api_invoice_pay(request, pk):
                 'detail': '1 service', 'unit_price': str(gs.price), 'total': str(gs.price),
             })
 
-    prev_summary = [
-        {
-            'invoice_id': p.id,
-            'date':       p.created_at.strftime('%Y-%m-%d'),
-            'total':      str(p.total),
-            'paid':       str(p.paid_amount),
-            'remaining':  str(p.remaining),
-        }
-        for p in prev_invoice_records
-    ]
-
     invoice_pdf = _generate_invoice_pdf(
         doctor_name=doctor_name,
         patient_name=patient_name,
@@ -1074,11 +1047,10 @@ def api_invoice_pay(request, pk):
         subtotal=str(invoice.subtotal),
         discount=str(invoice.discount) if invoice.discount else None,
         total=str(invoice.total),
-        paid_amount=str(invoice.paid_amount),
+        paid_amount=str(new_payment),
         remaining=str(invoice.remaining),
         clinic_name=clinic_name,
         logo_url=logo_url,
-        previous_invoices=prev_summary,
     )
 
     invoice_url = None
