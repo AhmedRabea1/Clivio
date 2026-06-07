@@ -1823,3 +1823,33 @@ def api_analytics_doctors(request):
             for d in doctors
         ]
     })
+
+
+# ─── Send SMS ─────────────────────────────────────────────────────────────────
+
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+def api_send_sms(request):
+    patient_ids = request.data.get('patient_ids', [])
+    message     = request.data.get('message', '').strip()
+
+    if not patient_ids or not isinstance(patient_ids, list):
+        return Response({'error': 'patient_ids must be a non-empty list.'}, status=400)
+    if not message:
+        return Response({'error': 'message is required.'}, status=400)
+
+    from accounts.utils import send_sms
+
+    patients = Patient.objects.filter(pk__in=patient_ids)
+    results  = []
+
+    for patient in patients:
+        full_message = f'Dear {patient.full_name},\n{message}'
+        try:
+            send_sms(to=patient.mobile_number, message=full_message)
+            results.append({'patient_id': patient.id, 'status': 'sent'})
+        except Exception as e:
+            results.append({'patient_id': patient.id, 'status': 'failed', 'error': str(e)})
+
+    return Response({'results': results})
+
