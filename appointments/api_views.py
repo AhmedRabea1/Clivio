@@ -927,9 +927,10 @@ def api_reservation_prescription(request, pk):
 @api_view(['GET'])
 @permission_classes([IsAuthenticated])
 def api_invoices(request):
-    branch_id     = request.query_params.get('branch_id', '').strip()
-    status_filter = request.query_params.get('status', '').strip()
-    search        = request.query_params.get('search', '').strip()
+    branch_id        = request.query_params.get('branch_id', '').strip()
+    status_filter    = request.query_params.get('status', '').strip()
+    search           = request.query_params.get('search', '').strip()
+    visit_date       = request.query_params.get('visit_date', '').strip()
     qs = Invoice.objects.select_related('reservation__patient', 'reservation__branch', 'reservation__doctor__user', 'patient').prefetch_related('reservation__attachments')
     if branch_id:
         qs = qs.filter(reservation__branch_id=branch_id)
@@ -942,6 +943,8 @@ def api_invoices(request):
             Q(patient__first_name__icontains=search)              |
             Q(patient__last_name__icontains=search)
         )
+    if visit_date:
+        qs = qs.filter(reservation__date_of_visit=visit_date)
     paginator = PageNumberPagination()
     paginator.page_size = 20
     page = paginator.paginate_queryset(qs, request)
@@ -987,6 +990,7 @@ def api_invoices(request):
             'branch_name':        inv.reservation.branch.name if inv.reservation else None,
             'doctor_name':        inv.reservation.doctor.user.name if inv.reservation and inv.reservation.doctor else None,
             'invoice_url':        inv.reservation.attachments.filter(name__startswith='Invoice_').values_list('url', flat=True).first() if inv.reservation else None,
+            'visit_date':         inv.reservation.date_of_visit if inv.reservation else None,
         }
         for inv in page
     ]
