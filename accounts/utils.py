@@ -11,7 +11,7 @@ def send_sms(to: str, message: str):
     ))
     client.messages.send(
         Sms(
-            to=to,
+            to=to.lstrip('+'),
             from_='Clivio',
             text=message,
         )
