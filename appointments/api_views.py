@@ -89,8 +89,9 @@ def api_patients(request):
     """
     if request.method == 'GET':
         qs = Patient.objects.all().order_by('-created_at')
-        search    = request.query_params.get('search', '').strip()
-        doctor_id = request.query_params.get('doctor_id', '').strip()
+        search     = request.query_params.get('search', '').strip()
+        doctor_id  = request.query_params.get('doctor_id', '').strip()
+        service_id = request.query_params.get('service_id', '').strip()
         if search:
             qs = qs.filter(
                 Q(first_name__icontains=search) |
@@ -99,6 +100,11 @@ def api_patients(request):
             )
         if doctor_id:
             qs = qs.filter(reservations__doctor__user__pk=doctor_id).distinct()
+        if service_id:
+            qs = qs.filter(
+                Q(reservations__derma_mappings__zones__zone_services__service_id=service_id) |
+                Q(reservations__body_mappings__zones__zone_services__service_id=service_id)
+            ).distinct()
         paginator = PageNumberPagination()
         paginator.page_size = 10
         page = paginator.paginate_queryset(qs, request)
@@ -921,13 +927,21 @@ def api_reservation_prescription(request, pk):
 @api_view(['GET'])
 @permission_classes([IsAuthenticated])
 def api_invoices(request):
-    branch_id = request.query_params.get('branch_id', '').strip()
+    branch_id     = request.query_params.get('branch_id', '').strip()
     status_filter = request.query_params.get('status', '').strip()
+    search        = request.query_params.get('search', '').strip()
     qs = Invoice.objects.select_related('reservation__patient', 'reservation__branch', 'reservation__doctor__user', 'patient').prefetch_related('reservation__attachments')
     if branch_id:
         qs = qs.filter(reservation__branch_id=branch_id)
     if status_filter in (Invoice.Status.PENDING, Invoice.Status.PARTIAL, Invoice.Status.PAID):
         qs = qs.filter(status=status_filter)
+    if search:
+        qs = qs.filter(
+            Q(reservation__patient__first_name__icontains=search) |
+            Q(reservation__patient__last_name__icontains=search)  |
+            Q(patient__first_name__icontains=search)              |
+            Q(patient__last_name__icontains=search)
+        )
     paginator = PageNumberPagination()
     paginator.page_size = 20
     page = paginator.paginate_queryset(qs, request)
