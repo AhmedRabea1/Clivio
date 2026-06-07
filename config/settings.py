@@ -186,10 +186,9 @@ EMAIL_BACKEND = 'django.core.mail.backends.console.EmailBackend'
 DEFAULT_FROM_EMAIL = 'noreply@clivio.com'
 FRONTEND_URL = os.environ.get('FRONTEND_URL', 'http://localhost:3000')
 
-# ─── Twilio ───────────────────────────────────────────────────────────────────
-TWILIO_ACCOUNT_SID           = os.environ.get('TWILIO_ACCOUNT_SID')
-TWILIO_AUTH_TOKEN            = os.environ.get('TWILIO_AUTH_TOKEN')
-TWILIO_MESSAGING_SERVICE_SID = os.environ.get('TWILIO_MESSAGING_SERVICE_SID')
+# ─── Vonage ───────────────────────────────────────────────────────────────────
+VONAGE_API_KEY    = os.environ.get('VONAGE_API_KEY')
+VONAGE_API_SECRET = os.environ.get('VONAGE_API_SECRET')
 
 # ─── Logging ──────────────────────────────────────────────────────────────────
 LOGGING = {

@@ -1,11 +1,18 @@
-from twilio.rest import Client
 from django.conf import settings
 
 
 def send_sms(to: str, message: str):
-    client = Client(settings.TWILIO_ACCOUNT_SID, settings.TWILIO_AUTH_TOKEN)
-    client.messages.create(
-        body=message,
-        messaging_service_sid=settings.TWILIO_MESSAGING_SERVICE_SID,
-        to=to,
+    from vonage import Auth, Vonage
+    from vonage_messages import Sms
+
+    client = Vonage(Auth(
+        api_key=settings.VONAGE_API_KEY,
+        api_secret=settings.VONAGE_API_SECRET,
+    ))
+    client.messages.send(
+        Sms(
+            to=to,
+            from_='Clivio',
+            text=message,
+        )
     )
