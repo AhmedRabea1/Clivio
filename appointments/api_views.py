@@ -255,6 +255,16 @@ def api_reservation_detail(request, pk):
     return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
 
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+def api_book_reservation(request):
+    serializer = PublicReservationCreateSerializer(data=request.data)
+    if serializer.is_valid():
+        reservation = serializer.save()
+        return Response(ReservationSerializer(reservation).data, status=status.HTTP_201_CREATED)
+    return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+
 # ─── Slot generation helper ───────────────────────────────────────────────────
 
 PYTHON_TO_MODEL_DAY = {5: 0, 6: 1, 0: 2, 1: 3, 2: 4, 3: 5, 4: 6}
