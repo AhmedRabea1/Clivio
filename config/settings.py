@@ -186,9 +186,9 @@ EMAIL_BACKEND = 'django.core.mail.backends.console.EmailBackend'
 DEFAULT_FROM_EMAIL = 'noreply@clivio.com'
 FRONTEND_URL = os.environ.get('FRONTEND_URL', 'http://localhost:3000')
 
-# ─── Vonage ───────────────────────────────────────────────────────────────────
-VONAGE_API_KEY    = os.environ.get('VONAGE_API_KEY')
-VONAGE_API_SECRET = os.environ.get('VONAGE_API_SECRET')
+# ─── WhySMS ───────────────────────────────────────────────────────────────────
+WHYSMS_API_TOKEN = os.environ.get('WHYSMS_API_TOKEN')
+WHYSMS_SENDER_ID = os.environ.get('WHYSMS_SENDER_ID', 'Clivio')
 
 # ─── Logging ──────────────────────────────────────────────────────────────────
 LOGGING = {
