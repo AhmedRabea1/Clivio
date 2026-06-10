@@ -711,23 +711,41 @@ def _generate_prescription_from_template(patient_name, medicines):
     from django.conf import settings
     from reportlab.pdfgen import canvas
     from reportlab.lib.pagesizes import A4
+    from reportlab.pdfbase import pdfmetrics
+    from reportlab.pdfbase.ttfonts import TTFont
+    import arabic_reshaper
+    from bidi.algorithm import get_display
 
     template_path = settings.MEDIA_ROOT / 'attachments' / 'rosheta.png'
     if not template_path.exists():
         return None
 
+    # Register Arabic font
+    font_path = settings.MEDIA_ROOT / 'arabic.ttf'
+    if font_path.exists():
+        pdfmetrics.registerFont(TTFont('Arabic', str(font_path)))
+        arabic_font = 'Arabic'
+    else:
+        arabic_font = 'Helvetica'
+
+    def render_text(text):
+        try:
+            reshaped = arabic_reshaper.reshape(text)
+            return get_display(reshaped)
+        except Exception:
+            return text
+
     buffer = BytesIO()
-    w, h   = A4  # 595 x 842 points
+    w, h   = A4
     c      = canvas.Canvas(buffer, pagesize=A4)
 
-    # Background template image
     c.drawImage(str(template_path), 0, 0, width=w, height=h)
 
-    c.setFont('Helvetica', 11)
+    c.setFont(arabic_font, 11)
     c.setFillColorRGB(0, 0, 0)
 
-    # Patient name next to الاسم field (top-left area)
-    c.drawString(160, 753, patient_name)
+    # Patient name next to الاسم field
+    c.drawString(160, 753, render_text(patient_name))
 
     # Date next to التاريخ field
     c.drawString(160, 733, date.today().strftime('%d/%m/%Y'))
@@ -735,7 +753,7 @@ def _generate_prescription_from_template(patient_name, medicines):
     # Medicines below R/
     y = 618
     for med in medicines:
-        text = med.get('description', '')
+        text = render_text(med.get('description', ''))
         c.drawString(70, y, text)
         y -= 22
         if y < 100:
