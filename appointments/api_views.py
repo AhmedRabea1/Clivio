@@ -870,11 +870,13 @@ def api_reservation_prescription(request, pk):
     total = subtotal - discount_val if discount_val else subtotal
 
     # ── Create invoice ────────────────────────────────────────────────────────
+    invoice_status = Invoice.Status.FREE if total == Decimal('0') else Invoice.Status.PENDING
     invoice = Invoice.objects.create(
         reservation=reservation,
         subtotal=subtotal,
         discount=discount_val,
         total=total,
+        status=invoice_status,
     )
 
     # ── Fetch clinic config ───────────────────────────────────────────────────

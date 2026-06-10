@@ -84,9 +84,10 @@ class Reservation(models.Model):
 
 class Invoice(models.Model):
     class Status(models.TextChoices):
-        PENDING = 'pending', 'Pending'
-        PARTIAL = 'partial', 'Partial'
-        PAID    = 'paid',    'Paid'
+        PENDING = 'pending',        'Pending'
+        PARTIAL = 'partial',        'Partial'
+        PAID    = 'paid',           'Paid'
+        FREE    = 'free',  'Free'
 
     reservation = models.ForeignKey(Reservation, on_delete=models.CASCADE, related_name='invoices', null=True, blank=True)
     patient     = models.ForeignKey(Patient, on_delete=models.CASCADE, related_name='invoices', null=True, blank=True)
