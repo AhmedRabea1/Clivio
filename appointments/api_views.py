@@ -114,9 +114,8 @@ def api_patients(request):
     is_for_self = str(request.data.get('is_for_self', True)).lower() not in ('false', '0', 'no')
 
     if is_for_self:
-        existing = Patient.objects.filter(mobile_number=mobile, is_primary=True).first()
-        if existing:
-            return Response(PatientSerializer(existing).data, status=status.HTTP_200_OK)
+        if Patient.objects.filter(mobile_number=mobile, is_primary=True).exists():
+            return Response({'message': 'This number already exists.'}, status=status.HTTP_400_BAD_REQUEST)
         serializer = PatientCreateSerializer(data=request.data)
         if serializer.is_valid():
             patient = serializer.save(is_primary=True, created_by=request.user)
@@ -136,7 +135,7 @@ def api_patients(request):
         first_name__iexact=first_name, last_name__iexact=last_name,
     ).first()
     if existing:
-        return Response(PatientSerializer(existing).data, status=status.HTTP_200_OK)
+        return Response({'message': 'This number already exists.'}, status=status.HTTP_400_BAD_REQUEST)
     primary = Patient.objects.filter(mobile_number=mobile, is_primary=True).first()
     serializer = PatientCreateSerializer(data=request.data)
     if serializer.is_valid():
