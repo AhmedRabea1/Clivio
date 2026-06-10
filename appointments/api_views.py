@@ -965,10 +965,7 @@ def api_reservation_prescription(request, pk):
 
     prescription_url = None
     if medicines:
-        prescription_pdf = _generate_prescription_from_template(
-            patient_name=patient_name,
-            medicines=medicines,
-        ) or _generate_prescription_pdf(
+        prescription_pdf = _generate_prescription_pdf(
             doctor_name=doctor_name,
             patient_name=patient_name,
             medicines=medicines,
