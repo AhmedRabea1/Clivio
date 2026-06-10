@@ -705,6 +705,47 @@ def _generate_invoice_pdf(doctor_name, patient_name, items, subtotal, discount, 
     return buffer.getvalue()
 
 
+def _generate_prescription_from_template(patient_name, medicines):
+    from io import BytesIO
+    from datetime import date
+    from django.conf import settings
+    from reportlab.pdfgen import canvas
+    from reportlab.lib.pagesizes import A4
+
+    template_path = settings.MEDIA_ROOT / 'attachments' / 'rosheta.png'
+    if not template_path.exists():
+        return None
+
+    buffer = BytesIO()
+    w, h   = A4  # 595 x 842 points
+    c      = canvas.Canvas(buffer, pagesize=A4)
+
+    # Background template image
+    c.drawImage(str(template_path), 0, 0, width=w, height=h)
+
+    c.setFont('Helvetica', 11)
+    c.setFillColorRGB(0, 0, 0)
+
+    # Patient name next to الاسم field (top-left area)
+    c.drawString(160, 753, patient_name)
+
+    # Date next to التاريخ field
+    c.drawString(160, 733, date.today().strftime('%d/%m/%Y'))
+
+    # Medicines below R/
+    y = 618
+    for med in medicines:
+        text = med.get('description', '')
+        c.drawString(70, y, text)
+        y -= 22
+        if y < 100:
+            break
+
+    c.save()
+    buffer.seek(0)
+    return buffer.getvalue()
+
+
 def _generate_prescription_pdf(doctor_name, patient_name, medicines, clinic_name, logo_url):
     from io import BytesIO
     from datetime import date
@@ -906,7 +947,10 @@ def api_reservation_prescription(request, pk):
 
     prescription_url = None
     if medicines:
-        prescription_pdf = _generate_prescription_pdf(
+        prescription_pdf = _generate_prescription_from_template(
+            patient_name=patient_name,
+            medicines=medicines,
+        ) or _generate_prescription_pdf(
             doctor_name=doctor_name,
             patient_name=patient_name,
             medicines=medicines,
