@@ -166,6 +166,11 @@ def api_patient_detail(request, pk):
         patient.delete()
         return Response(status=status.HTTP_204_NO_CONTENT)
 
+    mobile = request.data.get('mobile_number', '').strip()
+    if mobile and mobile != patient.mobile_number:
+        if Patient.objects.filter(mobile_number=mobile).exclude(pk=pk).exists():
+            return Response({'message': 'This number already exists.'}, status=status.HTTP_400_BAD_REQUEST)
+
     serializer = PatientCreateSerializer(patient, data=request.data, partial=True)
     if serializer.is_valid():
         serializer.save()
