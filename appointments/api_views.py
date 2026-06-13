@@ -218,8 +218,11 @@ def api_reservations(request):
             qs = qs.filter(patient__pk=patient_id)
         if date_of_visit:
             qs = qs.filter(date_of_visit=date_of_visit)
+        is_doctor = hasattr(request.user, 'doctor_profile')
         if res_status:
             qs = qs.filter(status=res_status)
+        elif is_doctor:
+            qs = qs.exclude(status=Reservation.Status.CANCELED)
 
         paginator = PageNumberPagination()
         paginator.page_size = 10
@@ -295,7 +298,7 @@ def _get_slots_for_doctor(doctor_id, branch_id, visit_date, interval):
             branch_id=branch_id,
             date_of_visit=visit_date,
             slot__isnull=False,
-        ).values_list('slot', flat=True)
+        ).exclude(status=Reservation.Status.CANCELED).values_list('slot', flat=True)
     )
 
     return [
@@ -371,7 +374,7 @@ def api_public_slots(request):
             branch_id=branch_id,
             date_of_visit=visit_date,
             slot__isnull=False,
-        ).values_list('slot', flat=True)
+        ).exclude(status=Reservation.Status.CANCELED).values_list('slot', flat=True)
     )
 
     slots = [
