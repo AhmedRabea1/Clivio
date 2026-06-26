@@ -549,7 +549,7 @@ def api_reservation_attachment_detail(request, pk):
 
 # ─── Prescription PDF ─────────────────────────────────────────────────────────
 
-def _generate_invoice_pdf(doctor_name, patient_name, items, subtotal, discount, total, clinic_name, logo_url, paid_amount=None, remaining=None, previous_invoices=None):
+def _generate_invoice_pdf(doctor_name, patient_name, items, subtotal, discount, total, clinic_name, logo_url, paid_amount=None, remaining=None, previous_invoices=None, payments=None):
     from io import BytesIO
     from datetime import date
     from decimal import Decimal
@@ -661,7 +661,11 @@ def _generate_invoice_pdf(doctor_name, patient_name, items, subtotal, discount, 
     if discount:
         totals_data.append([Paragraph('<b>Discount</b>', ParagraphStyle('D', parent=styles['Normal'], fontSize=11, textColor=GREEN)), Paragraph(f'- {discount}', ParagraphStyle('DR', parent=styles['Normal'], fontSize=11, alignment=TA_RIGHT, textColor=GREEN))])
     totals_data.append([Paragraph('<b>Total</b>', ParagraphStyle('T', parent=styles['Normal'], fontSize=13, fontName='Helvetica-Bold', textColor=PRIMARY)), Paragraph(f'<b>{total}</b>', ParagraphStyle('TR', parent=styles['Normal'], fontSize=13, fontName='Helvetica-Bold', alignment=TA_RIGHT, textColor=PRIMARY))])
-    if paid_amount is not None:
+    if payments:
+        for p in payments:
+            label = f'Paid ({p["payment_type_label"]})'
+            totals_data.append([Paragraph(f'<b>{label}</b>', ParagraphStyle('P', parent=styles['Normal'], fontSize=11, textColor=GREEN)), Paragraph(f'{p["amount"]}', ParagraphStyle('PR', parent=styles['Normal'], fontSize=11, alignment=TA_RIGHT, textColor=GREEN))])
+    elif paid_amount is not None:
         totals_data.append([Paragraph('<b>Paid</b>', ParagraphStyle('P', parent=styles['Normal'], fontSize=11, textColor=GREEN)), Paragraph(f'{paid_amount}', ParagraphStyle('PR', parent=styles['Normal'], fontSize=11, alignment=TA_RIGHT, textColor=GREEN))])
     if remaining is not None:
         RED = HexColor('#DC2626')
@@ -1156,6 +1160,14 @@ def api_invoice_pay(request, pk):
                 'detail': '1 service', 'unit_price': str(gs.price), 'total': str(gs.price),
             })
 
+    all_payments = [
+        {
+            'amount': str(p.amount),
+            'payment_type_label': p.get_payment_type_display(),
+        }
+        for p in invoice.payments.all()
+    ]
+
     invoice_pdf = _generate_invoice_pdf(
         doctor_name=doctor_name,
         patient_name=patient_name,
@@ -1163,10 +1175,11 @@ def api_invoice_pay(request, pk):
         subtotal=str(invoice.subtotal),
         discount=str(invoice.discount) if invoice.discount else None,
         total=str(invoice.total),
-        paid_amount=str(new_payment),
+        paid_amount=str(invoice.paid_amount),
         remaining=str(invoice.remaining),
         clinic_name=clinic_name,
         logo_url=logo_url,
+        payments=all_payments,
     )
 
     invoice_url = None
