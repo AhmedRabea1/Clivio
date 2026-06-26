@@ -1069,6 +1069,8 @@ def api_invoices(request):
             'doctor_name':        inv.reservation.doctor.user.name if inv.reservation and inv.reservation.doctor else None,
             'invoice_url':        inv.reservation.attachments.filter(name__startswith='Invoice_').values_list('url', flat=True).first() if inv.reservation else None,
             'visit_date':         inv.reservation.date_of_visit if inv.reservation else None,
+            'payment_type':       inv.payment_type,
+            'payment_type_label': inv.get_payment_type_display() if inv.payment_type else None,
         }
         for inv in page
     ]
@@ -1093,15 +1095,21 @@ def api_invoice_pay(request, pk):
     if invoice.status == Invoice.Status.PAID:
         return Response({'error': 'Invoice is already paid.'}, status=status.HTTP_400_BAD_REQUEST)
 
-    amount_paid = request.data.get('amount_paid')
+    amount_paid  = request.data.get('amount_paid')
+    payment_type = request.data.get('payment_type')
 
     if amount_paid is None:
         return Response({'error': 'amount_paid is required.'}, status=status.HTTP_400_BAD_REQUEST)
+    if payment_type is None:
+        return Response({'error': 'payment_type is required. 1=Instapay, 2=Cash, 3=Visa'}, status=status.HTTP_400_BAD_REQUEST)
+    if int(payment_type) not in Invoice.PaymentType.values:
+        return Response({'error': 'Invalid payment_type. 1=Instapay, 2=Cash, 3=Visa'}, status=status.HTTP_400_BAD_REQUEST)
 
     new_payment = Decimal(str(amount_paid))
-    invoice.paid_amount = min(invoice.total, invoice.paid_amount + new_payment)
-    invoice.status = Invoice.Status.PAID if invoice.paid_amount >= invoice.total else Invoice.Status.PARTIAL
-    invoice.save(update_fields=['paid_amount', 'status'])
+    invoice.paid_amount  = min(invoice.total, invoice.paid_amount + new_payment)
+    invoice.status       = Invoice.Status.PAID if invoice.paid_amount >= invoice.total else Invoice.Status.PARTIAL
+    invoice.payment_type = int(payment_type)
+    invoice.save(update_fields=['paid_amount', 'status', 'payment_type'])
 
     # ── Trigger inventory when fully paid ─────────────────────────────────────
     if invoice.status == Invoice.Status.PAID and invoice.reservation_id:
@@ -1930,4 +1938,46 @@ def api_send_sms(request):
             results.append({'patient_id': patient.id, 'status': 'failed', 'error': str(e)})
 
     return Response({'results': results})
+
+
+# ─── Daily Payment Summary ────────────────────────────────────────────────────
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def api_daily_payment_summary(request):
+    from decimal import Decimal
+    from django.db.models import Sum
+
+    date_from = request.query_params.get('date_from', '').strip()
+    date_to   = request.query_params.get('date_to', '').strip()
+
+    if not date_from or not date_to:
+        return Response({'error': 'date_from and date_to are required. Format: YYYY-MM-DD'}, status=400)
+
+    qs = Invoice.objects.filter(
+        created_at__date__gte=date_from,
+        created_at__date__lte=date_to,
+        status__in=[Invoice.Status.PAID, Invoice.Status.PARTIAL],
+        payment_type__isnull=False,
+    )
+
+
+    total_overall = qs.aggregate(s=Sum('paid_amount'))['s'] or Decimal('0')
+
+    breakdown = []
+    for pt in Invoice.PaymentType:
+        pt_qs = qs.filter(payment_type=pt.value)
+        total = pt_qs.aggregate(s=Sum('paid_amount'))['s'] or Decimal('0')
+        breakdown.append({
+            'payment_type':       pt.value,
+            'payment_type_label': pt.label,
+            'total':              str(total),
+        })
+
+    return Response({
+        'date_from': date_from,
+        'date_to':   date_to,
+        'total':     str(total_overall),
+        'breakdown': breakdown,
+    })
 

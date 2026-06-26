@@ -43,7 +43,7 @@ from appointments.api_views import (
     api_invoices, api_invoice_pay, api_invoice_bulk_pay,
     api_analytics_overview, api_analytics_revenue,
     api_analytics_reservations, api_analytics_doctors,
-    api_send_sms, api_book_reservation,
+    api_send_sms, api_book_reservation, api_daily_payment_summary,
 )
 
 api_urlpatterns = [
@@ -149,6 +149,9 @@ api_urlpatterns = [
 
     # SMS
     path('sms/send', api_send_sms, name='api_send_sms'),
+
+    # Daily Payment Summary
+    path('invoices/daily-summary', api_daily_payment_summary, name='api_daily_payment_summary'),
 
     # Analytics
     path('analytics/overview',     api_analytics_overview,     name='api_analytics_overview'),

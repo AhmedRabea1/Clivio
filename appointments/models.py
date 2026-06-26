@@ -89,14 +89,20 @@ class Invoice(models.Model):
         PAID    = 'paid',           'Paid'
         FREE    = 'free',  'Free'
 
-    reservation = models.ForeignKey(Reservation, on_delete=models.CASCADE, related_name='invoices', null=True, blank=True)
-    patient     = models.ForeignKey(Patient, on_delete=models.CASCADE, related_name='invoices', null=True, blank=True)
-    subtotal    = models.DecimalField(max_digits=10, decimal_places=2)
-    discount    = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True)
-    total       = models.DecimalField(max_digits=10, decimal_places=2)
-    paid_amount = models.DecimalField(max_digits=10, decimal_places=2, default=0)
-    status      = models.CharField(max_length=20, choices=Status.choices, default=Status.PENDING)
-    created_at  = models.DateTimeField(auto_now_add=True)
+    class PaymentType(models.IntegerChoices):
+        INSTAPAY = 1, 'Instapay'
+        CASH     = 2, 'Cash'
+        VISA     = 3, 'Visa'
+
+    reservation  = models.ForeignKey(Reservation, on_delete=models.CASCADE, related_name='invoices', null=True, blank=True)
+    patient      = models.ForeignKey(Patient, on_delete=models.CASCADE, related_name='invoices', null=True, blank=True)
+    subtotal     = models.DecimalField(max_digits=10, decimal_places=2)
+    discount     = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True)
+    total        = models.DecimalField(max_digits=10, decimal_places=2)
+    paid_amount  = models.DecimalField(max_digits=10, decimal_places=2, default=0)
+    status       = models.CharField(max_length=20, choices=Status.choices, default=Status.PENDING)
+    payment_type = models.IntegerField(choices=PaymentType.choices, null=True, blank=True)
+    created_at   = models.DateTimeField(auto_now_add=True)
 
     @property
     def remaining(self):
