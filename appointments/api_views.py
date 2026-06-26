@@ -14,7 +14,7 @@ from rest_framework.response import Response
 from django.db import transaction
 
 from .models import (
-    Reservation, Patient, ReservationAttachment, Invoice,
+    Reservation, Patient, ReservationAttachment, Invoice, InvoicePayment,
     DermaFaceMapping, DermaFaceMappingZone, DermaFaceMappingZoneService, DermaFaceMappingLine,
     DermaBodyMapping, DermaBodyMappingZone, DermaBodyMappingZoneService, DermaBodyMappingLine,
     ZoneDefinition, BodyZoneDefinition, PatientPulsePackage, PatientAreaPackage,
@@ -1069,8 +1069,15 @@ def api_invoices(request):
             'doctor_name':        inv.reservation.doctor.user.name if inv.reservation and inv.reservation.doctor else None,
             'invoice_url':        inv.reservation.attachments.filter(name__startswith='Invoice_').values_list('url', flat=True).first() if inv.reservation else None,
             'visit_date':         inv.reservation.date_of_visit if inv.reservation else None,
-            'payment_type':       inv.payment_type,
-            'payment_type_label': inv.get_payment_type_display() if inv.payment_type else None,
+            'payments':           [
+                {
+                    'amount':              str(p.amount),
+                    'payment_type':        p.payment_type,
+                    'payment_type_label':  p.get_payment_type_display(),
+                    'created_at':          p.created_at,
+                }
+                for p in inv.payments.all()
+            ],
         }
         for inv in page
     ]
@@ -1102,14 +1109,19 @@ def api_invoice_pay(request, pk):
         return Response({'error': 'amount_paid is required.'}, status=status.HTTP_400_BAD_REQUEST)
     if payment_type is None:
         return Response({'error': 'payment_type is required. 1=Instapay, 2=Cash, 3=Visa'}, status=status.HTTP_400_BAD_REQUEST)
-    if int(payment_type) not in Invoice.PaymentType.values:
+    if int(payment_type) not in InvoicePayment.PaymentType.values:
         return Response({'error': 'Invalid payment_type. 1=Instapay, 2=Cash, 3=Visa'}, status=status.HTTP_400_BAD_REQUEST)
 
     new_payment = Decimal(str(amount_paid))
-    invoice.paid_amount  = min(invoice.total, invoice.paid_amount + new_payment)
-    invoice.status       = Invoice.Status.PAID if invoice.paid_amount >= invoice.total else Invoice.Status.PARTIAL
-    invoice.payment_type = int(payment_type)
-    invoice.save(update_fields=['paid_amount', 'status', 'payment_type'])
+    invoice.paid_amount = min(invoice.total, invoice.paid_amount + new_payment)
+    invoice.status      = Invoice.Status.PAID if invoice.paid_amount >= invoice.total else Invoice.Status.PARTIAL
+    invoice.save(update_fields=['paid_amount', 'status'])
+
+    InvoicePayment.objects.create(
+        invoice=invoice,
+        amount=new_payment,
+        payment_type=int(payment_type),
+    )
 
     # ── Trigger inventory when fully paid ─────────────────────────────────────
     if invoice.status == Invoice.Status.PAID and invoice.reservation_id:
@@ -1951,22 +1963,17 @@ def api_daily_payment_summary(request):
     date_from = request.query_params.get('date_from', '').strip()
     date_to   = request.query_params.get('date_to', '').strip()
 
-    qs = Invoice.objects.filter(
-        status__in=[Invoice.Status.PAID, Invoice.Status.PARTIAL],
-        payment_type__isnull=False,
-    )
+    qs = InvoicePayment.objects.all()
     if date_from:
         qs = qs.filter(created_at__date__gte=date_from)
     if date_to:
         qs = qs.filter(created_at__date__lte=date_to)
 
-
-    total_overall = qs.aggregate(s=Sum('paid_amount'))['s'] or Decimal('0')
+    total_overall = qs.aggregate(s=Sum('amount'))['s'] or Decimal('0')
 
     breakdown = []
-    for pt in Invoice.PaymentType:
-        pt_qs = qs.filter(payment_type=pt.value)
-        total = pt_qs.aggregate(s=Sum('paid_amount'))['s'] or Decimal('0')
+    for pt in InvoicePayment.PaymentType:
+        total = qs.filter(payment_type=pt.value).aggregate(s=Sum('amount'))['s'] or Decimal('0')
         breakdown.append({
             'payment_type':       pt.value,
             'payment_type_label': pt.label,
