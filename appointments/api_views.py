@@ -1951,15 +1951,14 @@ def api_daily_payment_summary(request):
     date_from = request.query_params.get('date_from', '').strip()
     date_to   = request.query_params.get('date_to', '').strip()
 
-    if not date_from or not date_to:
-        return Response({'error': 'date_from and date_to are required. Format: YYYY-MM-DD'}, status=400)
-
     qs = Invoice.objects.filter(
-        created_at__date__gte=date_from,
-        created_at__date__lte=date_to,
         status__in=[Invoice.Status.PAID, Invoice.Status.PARTIAL],
         payment_type__isnull=False,
     )
+    if date_from:
+        qs = qs.filter(created_at__date__gte=date_from)
+    if date_to:
+        qs = qs.filter(created_at__date__lte=date_to)
 
 
     total_overall = qs.aggregate(s=Sum('paid_amount'))['s'] or Decimal('0')
