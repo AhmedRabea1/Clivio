@@ -1031,7 +1031,7 @@ def api_invoices(request):
     if visit_date:
         qs = qs.filter(reservation__date_of_visit=visit_date)
     paginator = PageNumberPagination()
-    paginator.page_size = 20
+    paginator.page_size = int(request.query_params.get('page_size', 20))
     page = paginator.paginate_queryset(qs, request)
 
     from decimal import Decimal
