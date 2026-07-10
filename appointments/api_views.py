@@ -1995,9 +1995,9 @@ def api_daily_payment_summary(request):
     # ── Payments breakdown ────────────────────────────────────────────────────
     payment_qs = InvoicePayment.objects.all()
     if date_from:
-        payment_qs = payment_qs.filter(created_at__date__gte=date_from)
+        payment_qs = payment_qs.filter(invoice__reservation__date_of_visit__gte=date_from)
     if date_to:
-        payment_qs = payment_qs.filter(created_at__date__lte=date_to)
+        payment_qs = payment_qs.filter(invoice__reservation__date_of_visit__lte=date_to)
     if doctor_id:
         payment_qs = payment_qs.filter(invoice__reservation__doctor__user__pk=doctor_id)
 
