@@ -2045,3 +2045,55 @@ def api_daily_payment_summary(request):
         'total_doctor_fees':  str(total_doctor_fees),
     })
 
+
+# ─── Export Paid Invoices ─────────────────────────────────────────────────────
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def api_export_invoices(request):
+    import openpyxl
+    from django.http import HttpResponse
+
+    date_from = request.query_params.get('date_from', '').strip()
+    date_to   = request.query_params.get('date_to', '').strip()
+    doctor_id = request.query_params.get('doctor_id', '').strip()
+
+    qs = Invoice.objects.filter(status=Invoice.Status.PAID).select_related(
+        'reservation__patient', 'reservation__doctor__user', 'reservation__branch', 'patient'
+    ).prefetch_related('reservation__general_services')
+
+    if date_from:
+        qs = qs.filter(reservation__date_of_visit__gte=date_from)
+    if date_to:
+        qs = qs.filter(reservation__date_of_visit__lte=date_to)
+    if doctor_id:
+        qs = qs.filter(reservation__doctor__user__pk=doctor_id)
+
+    wb = openpyxl.Workbook()
+    ws = wb.active
+    ws.title = 'Paid Invoices'
+
+    headers = ['Patient', 'General Service', 'Cost', 'Doctor', 'Date of Visit']
+    ws.append(headers)
+
+    for inv in qs:
+        res = inv.reservation
+        patient_name  = res.patient.full_name if res and res.patient else (inv.patient.full_name if inv.patient else '')
+        doctor_name   = res.doctor.user.name if res and res.doctor else ''
+        date_of_visit = str(res.date_of_visit) if res else ''
+        gs_names      = ', '.join(gs.name for gs in res.general_services.all()) if res else ''
+        cost          = str(inv.total)
+        ws.append([patient_name, gs_names, cost, doctor_name, date_of_visit])
+
+    from io import BytesIO
+    buffer = BytesIO()
+    wb.save(buffer)
+    buffer.seek(0)
+
+    response = HttpResponse(
+        buffer.getvalue(),
+        content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+    )
+    response['Content-Disposition'] = 'attachment; filename="invoices.xlsx"'
+    return response
+
