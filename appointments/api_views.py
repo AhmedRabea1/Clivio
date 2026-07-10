@@ -1013,9 +1013,12 @@ def api_invoices(request):
     status_filter    = request.query_params.get('status', '').strip()
     search           = request.query_params.get('search', '').strip()
     visit_date       = request.query_params.get('visit_date', '').strip()
-    qs = Invoice.objects.select_related('reservation__patient', 'reservation__branch', 'reservation__doctor__user', 'patient').prefetch_related('reservation__attachments')
+    doctor_id        = request.query_params.get('doctor_id', '').strip()
+    qs = Invoice.objects.select_related('reservation__patient', 'reservation__branch', 'reservation__doctor__user', 'patient').prefetch_related('reservation__attachments', 'payments')
     if branch_id:
         qs = qs.filter(reservation__branch_id=branch_id)
+    if doctor_id:
+        qs = qs.filter(reservation__doctor__user__pk=doctor_id)
     if status_filter in (Invoice.Status.PENDING, Invoice.Status.PARTIAL, Invoice.Status.PAID):
         qs = qs.filter(status=status_filter)
     if search:
