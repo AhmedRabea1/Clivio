@@ -2094,6 +2094,7 @@ def api_export_invoices(request):
         buffer.getvalue(),
         content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
     )
-    response['Content-Disposition'] = 'attachment; filename="invoices.xlsx"'
+    timestamp = datetime.now().strftime('%Y-%m-%d_%H-%M-%S')
+    response['Content-Disposition'] = f'attachment; filename="invoices_{timestamp}.xlsx"'
     return response
 
