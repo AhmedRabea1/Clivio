@@ -885,8 +885,9 @@ def api_reservation_prescription(request, pk):
     patient_id          = request.data.get('patient_id')
     discount            = request.data.get('discount')
     medicines           = request.data.get('medicines', [])
-    general_service_ids = request.data.get('general_service_ids', [])
-    used_packages       = request.data.get('used_packages', [])
+    general_service_ids   = request.data.get('general_service_ids', [])
+    general_service_price = request.data.get('general_service_price')
+    used_packages         = request.data.get('used_packages', [])
 
     try:
         doctor = Doctor.objects.select_related('user').get(user__pk=doctor_id)
@@ -901,8 +902,10 @@ def api_reservation_prescription(request, pk):
     # ── Set reservation to finished ───────────────────────────────────────────
     if discount is not None:
         reservation.discount = discount
+    if general_service_price is not None:
+        reservation.general_service_price = Decimal(str(general_service_price))
     reservation.status = Reservation.Status.FINISHED
-    reservation.save(update_fields=['discount', 'status'])
+    reservation.save(update_fields=['discount', 'status', 'general_service_price'])
     if general_service_ids:
         reservation.general_services.set(general_service_ids)
 
@@ -933,12 +936,13 @@ def api_reservation_prescription(request, pk):
     for mapping in DermaBodyMapping.objects.filter(reservation_id=pk):
         pricing_items.extend(_collect_mapping_items(mapping, 'body_mapping'))
     if general_service_ids:
-        for gs in GeneralService.objects.filter(pk__in=general_service_ids):
-            pricing_items.append({
-                'source': 'general_service', 'zone_label': None, 'service_name': None,
-                'line_type': 'general_service', 'name': gs.name,
-                'detail': '1 service', 'unit_price': str(gs.price), 'total': str(gs.price),
-            })
+        gs_price = Decimal(str(general_service_price)) if general_service_price else Decimal('0')
+        gs_names = ', '.join(GeneralService.objects.filter(pk__in=general_service_ids).values_list('name', flat=True))
+        pricing_items.append({
+            'source': 'general_service', 'zone_label': None, 'service_name': None,
+            'line_type': 'general_service', 'name': gs_names,
+            'detail': '1 service', 'unit_price': str(gs_price), 'total': str(gs_price),
+        })
 
     subtotal = sum(Decimal(i['total']) for i in pricing_items)
     discount_pct = Decimal(str(discount)) if discount else None
@@ -1155,12 +1159,14 @@ def api_invoice_pay(request, pk):
             pricing_items.extend(_collect_mapping_items(mapping, 'face_mapping'))
         for mapping in DermaBodyMapping.objects.filter(reservation_id=invoice.reservation_id):
             pricing_items.extend(_collect_mapping_items(mapping, 'body_mapping'))
-        from accounts.models import GeneralService
-        for gs in invoice.reservation.general_services.all():
+        gs_list = list(invoice.reservation.general_services.all())
+        if gs_list:
+            gs_price = invoice.reservation.general_service_price or Decimal('0')
+            gs_names = ', '.join(gs.name for gs in gs_list)
             pricing_items.append({
                 'source': 'general_service', 'zone_label': None, 'service_name': None,
-                'line_type': 'general_service', 'name': gs.name,
-                'detail': '1 service', 'unit_price': str(gs.price), 'total': str(gs.price),
+                'line_type': 'general_service', 'name': gs_names,
+                'detail': '1 service', 'unit_price': str(gs_price), 'total': str(gs_price),
             })
 
     all_payments = [
@@ -1779,18 +1785,19 @@ def api_reservation_pricing(request):
     for mapping in DermaBodyMapping.objects.filter(reservation_id=reservation_id):
         items.extend(_collect_mapping_items(mapping, 'body_mapping'))
 
-    # Selected general services
+    # Selected general services — price entered manually by doctor at prescription time
     if general_service_ids:
         for gs in GeneralService.objects.filter(pk__in=general_service_ids):
             items.append({
-                'source':     'general_service',
-                'zone_label': None,
+                'source':       'general_service',
+                'zone_label':   None,
                 'service_name': None,
-                'line_type':  'general_service',
-                'name':       gs.name,
-                'detail':     '1 service',
-                'unit_price': str(gs.price),
-                'total':      str(gs.price),
+                'line_type':    'general_service',
+                'name':         gs.name,
+                'clinic_fees':  str(gs.clinic_fees) if gs.clinic_fees else None,
+                'detail':       '1 service',
+                'unit_price':   None,
+                'total':        '0',
             })
 
     grand_total = sum(Decimal(i['total']) for i in items)

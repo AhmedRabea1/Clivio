@@ -562,7 +562,6 @@ class GeneralServiceSerializer(serializers.Serializer):
     id          = serializers.IntegerField(read_only=True)
     doctor_id   = serializers.IntegerField()
     name        = serializers.CharField(max_length=255)
-    price       = serializers.DecimalField(max_digits=10, decimal_places=2, required=False, allow_null=True)
     clinic_fees = serializers.DecimalField(max_digits=10, decimal_places=2, required=False, allow_null=True)
 
     def validate_doctor_id(self, value):
@@ -579,7 +578,6 @@ class GeneralServiceSerializer(serializers.Serializer):
         if 'doctor_id' in validated_data:
             instance.doctor = validated_data.pop('doctor_id')
         instance.name        = validated_data.get('name',        instance.name)
-        instance.price       = validated_data.get('price',       instance.price)
         instance.clinic_fees = validated_data.get('clinic_fees', instance.clinic_fees)
         instance.save()
         return instance

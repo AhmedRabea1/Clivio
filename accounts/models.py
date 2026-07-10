@@ -292,7 +292,6 @@ class GeneralService(models.Model):
         related_name='general_services',
     )
     name        = models.CharField(max_length=255)
-    price       = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True)
     clinic_fees = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True)
 
     class Meta:
