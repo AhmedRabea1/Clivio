@@ -75,6 +75,7 @@ class AssistantRole(models.Model):
         ADD_ASSISTANT     = 'add_assistant',     'Add Assistant'
         EDIT_ASSISTANT    = 'edit_assistant',    'Edit Assistant'
         DELETE_ASSISTANT  = 'delete_assistant',  'Delete Assistant'
+        PAYMENT_INFO      = 'payment_info',      'Payment Info'
 
     role_name = models.CharField(max_length=30, choices=RoleName.choices, unique=True)
 
