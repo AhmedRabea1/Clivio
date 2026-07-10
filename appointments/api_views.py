@@ -1990,28 +1990,55 @@ def api_daily_payment_summary(request):
 
     date_from = request.query_params.get('date_from', '').strip()
     date_to   = request.query_params.get('date_to', '').strip()
+    doctor_id = request.query_params.get('doctor_id', '').strip()
 
-    qs = InvoicePayment.objects.all()
+    # ── Payments breakdown ────────────────────────────────────────────────────
+    payment_qs = InvoicePayment.objects.all()
     if date_from:
-        qs = qs.filter(created_at__date__gte=date_from)
+        payment_qs = payment_qs.filter(created_at__date__gte=date_from)
     if date_to:
-        qs = qs.filter(created_at__date__lte=date_to)
+        payment_qs = payment_qs.filter(created_at__date__lte=date_to)
+    if doctor_id:
+        payment_qs = payment_qs.filter(invoice__reservation__doctor__user__pk=doctor_id)
 
-    total_overall = qs.aggregate(s=Sum('amount'))['s'] or Decimal('0')
+    total_overall = payment_qs.aggregate(s=Sum('amount'))['s'] or Decimal('0')
 
     breakdown = []
     for pt in InvoicePayment.PaymentType:
-        total = qs.filter(payment_type=pt.value).aggregate(s=Sum('amount'))['s'] or Decimal('0')
+        total = payment_qs.filter(payment_type=pt.value).aggregate(s=Sum('amount'))['s'] or Decimal('0')
         breakdown.append({
             'payment_type':       pt.value,
             'payment_type_label': pt.label,
             'total':              str(total),
         })
 
+    # ── Clinic fees & doctor fees ─────────────────────────────────────────────
+    reservation_qs = Reservation.objects.filter(general_services__isnull=False).distinct()
+    if date_from:
+        reservation_qs = reservation_qs.filter(date_of_visit__gte=date_from)
+    if date_to:
+        reservation_qs = reservation_qs.filter(date_of_visit__lte=date_to)
+    if doctor_id:
+        reservation_qs = reservation_qs.filter(doctor__user__pk=doctor_id)
+
+    from accounts.models import GeneralService
+    gs_ids = reservation_qs.values_list('general_services', flat=True)
+    total_clinic_fees = GeneralService.objects.filter(pk__in=gs_ids).aggregate(
+        s=Sum('clinic_fees')
+    )['s'] or Decimal('0')
+
+    total_gs_price = reservation_qs.aggregate(
+        s=Sum('general_service_price')
+    )['s'] or Decimal('0')
+
+    total_doctor_fees = total_gs_price - total_clinic_fees
+
     return Response({
-        'date_from': date_from,
-        'date_to':   date_to,
-        'total':     str(total_overall),
-        'breakdown': breakdown,
+        'date_from':          date_from,
+        'date_to':            date_to,
+        'total':              str(total_overall),
+        'breakdown':          breakdown,
+        'total_clinic_fees':  str(total_clinic_fees),
+        'total_doctor_fees':  str(total_doctor_fees),
     })
 
