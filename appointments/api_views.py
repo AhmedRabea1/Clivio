@@ -1769,8 +1769,9 @@ def api_reservation_pricing(request):
     from decimal import Decimal
     from accounts.models import GeneralService
 
-    reservation_id       = request.data.get('reservation_id')
-    general_service_ids  = request.data.get('general_service_ids', [])
+    reservation_id        = request.data.get('reservation_id')
+    general_service_ids   = request.data.get('general_service_ids', [])
+    general_service_price = request.data.get('general_service_price')
 
     if not reservation_id:
         return Response({'error': 'reservation_id is required.'}, status=status.HTTP_400_BAD_REQUEST)
@@ -1785,8 +1786,9 @@ def api_reservation_pricing(request):
     for mapping in DermaBodyMapping.objects.filter(reservation_id=reservation_id):
         items.extend(_collect_mapping_items(mapping, 'body_mapping'))
 
-    # Selected general services — price entered manually by doctor at prescription time
+    # Selected general services
     if general_service_ids:
+        gs_price = Decimal(str(general_service_price)) if general_service_price else Decimal('0')
         for gs in GeneralService.objects.filter(pk__in=general_service_ids):
             items.append({
                 'source':       'general_service',
@@ -1796,8 +1798,8 @@ def api_reservation_pricing(request):
                 'name':         gs.name,
                 'clinic_fees':  str(gs.clinic_fees) if gs.clinic_fees else None,
                 'detail':       '1 service',
-                'unit_price':   None,
-                'total':        '0',
+                'unit_price':   str(gs_price),
+                'total':        str(gs_price),
             })
 
     grand_total = sum(Decimal(i['total']) for i in items)

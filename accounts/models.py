@@ -291,8 +291,9 @@ class GeneralService(models.Model):
         on_delete=models.CASCADE,
         related_name='general_services',
     )
-    name        = models.CharField(max_length=255)
-    clinic_fees = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True)
+    name                  = models.CharField(max_length=255)
+    general_service_price = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True)
+    clinic_fees           = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True)
 
     class Meta:
         ordering = ['name']
