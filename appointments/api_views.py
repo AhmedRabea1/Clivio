@@ -2013,7 +2013,10 @@ def api_daily_payment_summary(request):
         })
 
     # ── Clinic fees & doctor fees ─────────────────────────────────────────────
-    reservation_qs = Reservation.objects.filter(general_services__isnull=False).distinct()
+    reservation_qs = Reservation.objects.filter(
+        general_services__isnull=False,
+        invoices__status=Invoice.Status.PAID,
+    ).distinct()
     if date_from:
         reservation_qs = reservation_qs.filter(date_of_visit__gte=date_from)
     if date_to:
