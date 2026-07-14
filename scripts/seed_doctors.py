@@ -13,7 +13,7 @@ django.setup()
 from django.conf import settings
 print('DB:', settings.DATABASES['default'].get('NAME') or settings.DATABASES['default'].get('HOST', 'unknown'))
 
-from accounts.models import User, Doctor
+from accounts.models import User, Doctor, Clinic
 from branches.models import Branch, DoctorSchedule
 
 BRANCH_ID = 1
@@ -34,14 +34,16 @@ FROM_TIME  = '12:00'
 TO_TIME    = '23:59'
 
 branch = Branch.objects.get(pk=BRANCH_ID)
+clinic = Clinic.objects.first()
 
 for doc in DOCTORS:
     user, created = User.objects.get_or_create(
         email=doc['email'],
         defaults={
-            'name': doc['name'],
-            'role': User.Role.DOCTOR,
+            'name':     doc['name'],
+            'role':     User.Role.DOCTOR,
             'is_active': True,
+            'clinic':   clinic,
         }
     )
     if created:
