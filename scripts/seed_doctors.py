@@ -4,7 +4,14 @@ import django
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'config.settings')
+
+from dotenv import load_dotenv
+load_dotenv(os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), '.env'), override=True)
+
 django.setup()
+
+from django.conf import settings
+print('DB:', settings.DATABASES['default'].get('NAME') or settings.DATABASES['default'].get('HOST', 'unknown'))
 
 from accounts.models import User, Doctor
 from branches.models import Branch, DoctorSchedule
