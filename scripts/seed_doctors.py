@@ -50,8 +50,13 @@ for doc in DOCTORS:
         print(f'Created user: {doc["name"]}')
     else:
         print(f'User already exists: {doc["name"]}')
+        if user.role != User.Role.DOCTOR:
+            user.role = User.Role.DOCTOR
+            user.save(update_fields=['role'])
+            print(f'  Fixed role to doctor')
 
-    doctor, _ = Doctor.objects.get_or_create(user=user)
+    doctor, doc_created = Doctor.objects.get_or_create(user=user)
+    print(f'  Doctor profile: {"created" if doc_created else "already exists"} (id={doctor.pk})')
 
     for day in ALL_DAYS:
         DoctorSchedule.objects.get_or_create(
