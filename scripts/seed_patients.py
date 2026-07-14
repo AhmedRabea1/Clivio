@@ -40,6 +40,8 @@ for i, row in enumerate(ws.iter_rows(values_only=True)):
 
     # Clean mobile — remove spaces/dashes
     mobile = mobile.replace(' ', '').replace('-', '')
+    if not mobile.startswith('+'):
+        mobile = '+2' + mobile
 
     # Split name: first word = first_name, rest = last_name
     parts      = full_name.split()
