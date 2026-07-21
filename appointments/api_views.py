@@ -1860,8 +1860,7 @@ def api_analytics_overview(request):
     total_revenue   = paid_invoices.aggregate(t=Sum('total'))['t'] or Decimal('0')
     pending_revenue = Invoice.objects.filter(status=Invoice.Status.PENDING, **invoice_f).aggregate(t=Sum('total'))['t'] or Decimal('0')
 
-    patient_f = {k.replace('date_of_visit', 'reservations__date_of_visit').replace('branch_id', 'reservations__branch_id'): v for k, v in f.items()}
-    new_patients = Patient.objects.filter(**patient_f).distinct().count()
+    new_patients = Patient.objects.count()
 
     return Response({
         'total_reservations': total_reservations,
