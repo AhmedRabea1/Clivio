@@ -236,12 +236,13 @@ def api_reservations(request):
     return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
 
-@api_view(['GET', 'PATCH'])
+@api_view(['GET', 'PATCH', 'DELETE'])
 @permission_classes([IsAuthenticated])
 def api_reservation_detail(request, pk):
     """
-    GET   /api/reservations/:id — get reservation by id
-    PATCH /api/reservations/:id — update reservation fields or status
+    GET    /api/reservations/:id — get reservation by id
+    PATCH  /api/reservations/:id — update reservation fields or status
+    DELETE /api/reservations/:id — delete reservation by id
     """
     try:
         reservation = Reservation.objects.select_related('patient', 'branch', 'doctor__user').get(pk=pk)
@@ -250,6 +251,10 @@ def api_reservation_detail(request, pk):
 
     if request.method == 'GET':
         return Response(ReservationSerializer(reservation).data)
+
+    if request.method == 'DELETE':
+        reservation.delete()
+        return Response(status=status.HTTP_204_NO_CONTENT)
 
     serializer = ReservationUpdateSerializer(data=request.data)
     if serializer.is_valid():
