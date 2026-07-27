@@ -83,6 +83,18 @@ class Reservation(models.Model):
         return f'{self.patient.full_name} — {self.date_of_visit}'
 
 
+class ReservationGeneralServicePrice(models.Model):
+    reservation      = models.ForeignKey(Reservation, on_delete=models.CASCADE, related_name='general_service_prices')
+    general_service  = models.ForeignKey('accounts.GeneralService', on_delete=models.CASCADE)
+    price            = models.DecimalField(max_digits=10, decimal_places=2)
+
+    class Meta:
+        unique_together = ('reservation', 'general_service')
+
+    def __str__(self):
+        return f'{self.reservation_id} — {self.general_service.name}: {self.price}'
+
+
 class Invoice(models.Model):
     class Status(models.TextChoices):
         PENDING = 'pending',        'Pending'

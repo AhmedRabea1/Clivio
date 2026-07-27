@@ -18,6 +18,7 @@ from .models import (
     DermaFaceMapping, DermaFaceMappingZone, DermaFaceMappingZoneService, DermaFaceMappingLine,
     DermaBodyMapping, DermaBodyMappingZone, DermaBodyMappingZoneService, DermaBodyMappingLine,
     ZoneDefinition, BodyZoneDefinition, PatientPulsePackage, PatientAreaPackage,
+    ReservationGeneralServicePrice,
 )
 from .serializers import (
     PublicReservationCreateSerializer, ReservationSerializer, ReservationUpdateSerializer,
@@ -913,6 +914,14 @@ def api_reservation_prescription(request, pk):
     reservation.save(update_fields=['discount', 'status', 'general_service_price'])
     if general_service_ids:
         reservation.general_services.set(general_service_ids)
+        ReservationGeneralServicePrice.objects.filter(reservation=reservation).exclude(
+            general_service_id__in=general_service_ids
+        ).delete()
+        for gs_id in general_service_ids:
+            ReservationGeneralServicePrice.objects.update_or_create(
+                reservation=reservation, general_service_id=gs_id,
+                defaults={'price': general_service_price_map.get(gs_id, Decimal('0'))},
+            )
 
     # ── Apply package usage ───────────────────────────────────────────────────
     for pkg in used_packages:
@@ -1166,15 +1175,24 @@ def api_invoice_pay(request, pk):
             pricing_items.extend(_collect_mapping_items(mapping, 'face_mapping'))
         for mapping in DermaBodyMapping.objects.filter(reservation_id=invoice.reservation_id):
             pricing_items.extend(_collect_mapping_items(mapping, 'body_mapping'))
-        gs_list = list(invoice.reservation.general_services.all())
-        if gs_list:
-            gs_price = invoice.reservation.general_service_price or Decimal('0')
-            gs_names = ', '.join(gs.name for gs in gs_list)
-            pricing_items.append({
-                'source': 'general_service', 'zone_label': None, 'service_name': None,
-                'line_type': 'general_service', 'name': gs_names,
-                'detail': '1 service', 'unit_price': str(gs_price), 'total': str(gs_price),
-            })
+        gs_prices = list(invoice.reservation.general_service_prices.select_related('general_service'))
+        if gs_prices:
+            for gsp in gs_prices:
+                pricing_items.append({
+                    'source': 'general_service', 'zone_label': None, 'service_name': None,
+                    'line_type': 'general_service', 'name': gsp.general_service.name,
+                    'detail': '1 service', 'unit_price': str(gsp.price), 'total': str(gsp.price),
+                })
+        else:
+            gs_list = list(invoice.reservation.general_services.all())
+            if gs_list:
+                gs_price = invoice.reservation.general_service_price or Decimal('0')
+                gs_names = ', '.join(gs.name for gs in gs_list)
+                pricing_items.append({
+                    'source': 'general_service', 'zone_label': None, 'service_name': None,
+                    'line_type': 'general_service', 'name': gs_names,
+                    'detail': '1 service', 'unit_price': str(gs_price), 'total': str(gs_price),
+                })
 
     all_payments = [
         {
@@ -1322,6 +1340,10 @@ def api_reservation_summary(request):
             'branch_name':         reservation.branch.name,
             'discount':            reservation.discount,
             'general_service_ids': list(reservation.general_services.values_list('id', flat=True)),
+            'general_services':    [
+                {'general_service_id': gsp.general_service_id, 'price': str(gsp.price)}
+                for gsp in reservation.general_service_prices.all()
+            ],
             'invoice_status':      reservation.invoices.values_list('status', flat=True).first(),
         },
         'attachments': ReservationAttachmentSerializer(attachments, many=True, context={'request': request}).data,

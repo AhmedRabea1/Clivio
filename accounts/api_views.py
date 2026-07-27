@@ -846,9 +846,12 @@ def api_doctor_medicine_detail(request, pk):
 def api_general_services(request):
     if request.method == 'GET':
         doctor_id = request.query_params.get('doctor_id', '').strip()
+        return_all = request.query_params.get('all', '').strip().lower() == 'true'
         qs = GeneralService.objects.all()
         if doctor_id:
             qs = qs.filter(doctor__user__pk=doctor_id)
+        if return_all:
+            return Response(GeneralServiceSerializer(qs, many=True).data)
         paginator = PageNumberPagination()
         paginator.page_size = 10
         page = paginator.paginate_queryset(qs, request)
