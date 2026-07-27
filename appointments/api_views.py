@@ -2107,6 +2107,7 @@ def api_daily_payment_summary(request):
 @permission_classes([IsAuthenticated])
 def api_export_invoices(request):
     import openpyxl
+    from decimal import Decimal
     from django.http import HttpResponse
 
     date_from = request.query_params.get('date_from', '').strip()
@@ -2128,7 +2129,7 @@ def api_export_invoices(request):
     ws = wb.active
     ws.title = 'Paid Invoices'
 
-    headers = ['Patient', 'General Service', 'Cost', 'Doctor', 'Date of Visit']
+    headers = ['Patient', 'General Service', 'Cost', 'Total Clinic Fees', 'Doctor', 'Date of Visit']
     ws.append(headers)
 
     for inv in qs:
@@ -2136,9 +2137,11 @@ def api_export_invoices(request):
         patient_name  = res.patient.full_name if res and res.patient else (inv.patient.full_name if inv.patient else '')
         doctor_name   = res.doctor.user.name if res and res.doctor else ''
         date_of_visit = str(res.date_of_visit) if res else ''
-        gs_names      = ', '.join(gs.name for gs in res.general_services.all()) if res else ''
+        gs_list       = list(res.general_services.all()) if res else []
+        gs_names      = ', '.join(gs.name for gs in gs_list)
+        total_clinic_fees = sum((gs.clinic_fees or Decimal('0')) for gs in gs_list)
         cost          = str(inv.total)
-        ws.append([patient_name, gs_names, cost, doctor_name, date_of_visit])
+        ws.append([patient_name, gs_names, cost, str(total_clinic_fees), doctor_name, date_of_visit])
 
     from io import BytesIO
     buffer = BytesIO()
