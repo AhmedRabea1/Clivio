@@ -23,11 +23,11 @@ CLINIC_IN_EMAILS = [
     'mohamedmagdy@joliderm.info',
     'amrsweidan@joliderm.info',
     'mahy@joliderm.info',
+    'rehab@joliderm.info',
 ]
 
 # Clinic-Out doctors
 CLINIC_OUT_EMAILS = [
-    'nagla@joliderm.info',
     'aliaatef@gmail.com',
     'lailaibrahim@gmail.com',
 ]
