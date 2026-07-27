@@ -1341,8 +1341,12 @@ def api_reservation_summary(request):
             'discount':            reservation.discount,
             'general_service_ids': list(reservation.general_services.values_list('id', flat=True)),
             'general_services':    [
-                {'general_service_id': gsp.general_service_id, 'price': str(gsp.price)}
-                for gsp in reservation.general_service_prices.all()
+                {
+                    'general_service_id': gsp.general_service_id,
+                    'name':               gsp.general_service.name,
+                    'price':              str(gsp.price),
+                }
+                for gsp in reservation.general_service_prices.select_related('general_service')
             ],
             'invoice_status':      reservation.invoices.values_list('status', flat=True).first(),
         },
