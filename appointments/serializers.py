@@ -220,7 +220,7 @@ class PublicReservationCreateSerializer(serializers.Serializer):
             ).exists()
 
         if not patient_exists:
-            for field in ('first_name', 'last_name', 'date_of_birth'):
+            for field in ('first_name', 'last_name'):
                 if not attrs.get(field):
                     raise serializers.ValidationError(
                         {field: 'This field is required for new patients.'}

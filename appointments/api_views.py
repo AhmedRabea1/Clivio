@@ -1298,9 +1298,11 @@ def api_reservation_summary(request):
     except Reservation.DoesNotExist:
         return Response({'error': 'Reservation not found.'}, status=status.HTTP_404_NOT_FOUND)
 
-    today = date.today()
-    dob   = patient.date_of_birth
-    age   = today.year - dob.year - ((today.month, today.day) < (dob.month, dob.day))
+    dob = patient.date_of_birth
+    age = None
+    if dob:
+        today = date.today()
+        age   = today.year - dob.year - ((today.month, today.day) < (dob.month, dob.day))
 
     attachments = reservation.attachments.all()
 
@@ -1344,9 +1346,11 @@ def api_patient_profile(request):
     except Patient.DoesNotExist:
         return Response({'error': 'Patient not found.'}, status=status.HTTP_404_NOT_FOUND)
 
-    today = date.today()
-    dob   = patient.date_of_birth
-    age   = today.year - dob.year - ((today.month, today.day) < (dob.month, dob.day))
+    dob = patient.date_of_birth
+    age = None
+    if dob:
+        today = date.today()
+        age   = today.year - dob.year - ((today.month, today.day) < (dob.month, dob.day))
 
     # All attachments across all reservations of this patient
     attachments = ReservationAttachment.objects.filter(

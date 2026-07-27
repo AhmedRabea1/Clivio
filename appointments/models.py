@@ -5,7 +5,7 @@ from django.conf import settings
 class Patient(models.Model):
     first_name = models.CharField(max_length=100)
     last_name  = models.CharField(max_length=100)
-    date_of_birth = models.DateField()
+    date_of_birth = models.DateField(null=True, blank=True)
     mobile_number = models.CharField(max_length=20)
     is_primary = models.BooleanField(default=True)
     primary_patient = models.ForeignKey(
