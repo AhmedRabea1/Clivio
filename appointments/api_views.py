@@ -886,13 +886,13 @@ def api_reservation_prescription(request, pk):
     except Reservation.DoesNotExist:
         return Response({'error': 'Reservation not found.'}, status=status.HTTP_404_NOT_FOUND)
 
-    doctor_id           = request.data.get('doctor_id')
-    patient_id          = request.data.get('patient_id')
-    discount            = request.data.get('discount')
-    medicines           = request.data.get('medicines', [])
-    general_service_ids   = request.data.get('general_service_ids', [])
-    general_service_price = request.data.get('general_service_price')
-    used_packages         = request.data.get('used_packages', [])
+    doctor_id     = request.data.get('doctor_id')
+    patient_id    = request.data.get('patient_id')
+    discount      = request.data.get('discount')
+    medicines     = request.data.get('medicines', [])
+    used_packages = request.data.get('used_packages', [])
+    general_service_ids, general_service_price_map = _parse_general_services(request.data)
+    general_service_price = sum(general_service_price_map.values()) if general_service_ids else None
 
     try:
         doctor = Doctor.objects.select_related('user').get(user__pk=doctor_id)
@@ -908,7 +908,7 @@ def api_reservation_prescription(request, pk):
     if discount is not None:
         reservation.discount = discount
     if general_service_price is not None:
-        reservation.general_service_price = Decimal(str(general_service_price))
+        reservation.general_service_price = general_service_price
     reservation.status = Reservation.Status.FINISHED
     reservation.save(update_fields=['discount', 'status', 'general_service_price'])
     if general_service_ids:
@@ -940,12 +940,11 @@ def api_reservation_prescription(request, pk):
         pricing_items.extend(_collect_mapping_items(mapping, 'face_mapping'))
     for mapping in DermaBodyMapping.objects.filter(reservation_id=pk):
         pricing_items.extend(_collect_mapping_items(mapping, 'body_mapping'))
-    if general_service_ids:
-        gs_price = Decimal(str(general_service_price)) if general_service_price else Decimal('0')
-        gs_names = ', '.join(GeneralService.objects.filter(pk__in=general_service_ids).values_list('name', flat=True))
+    for gs in GeneralService.objects.filter(pk__in=general_service_ids):
+        gs_price = general_service_price_map.get(gs.id, Decimal('0'))
         pricing_items.append({
             'source': 'general_service', 'zone_label': None, 'service_name': None,
-            'line_type': 'general_service', 'name': gs_names,
+            'line_type': 'general_service', 'name': gs.name,
             'detail': '1 service', 'unit_price': str(gs_price), 'total': str(gs_price),
         })
 
@@ -1711,6 +1710,30 @@ def _decrement_product(line):
             product.save(update_fields=['quantity', 'remainder_ml'])
 
 
+def _parse_general_services(data):
+    """
+    Accepts either the per-service format:
+      general_services: [{"general_service_id": 1, "price": 200}, ...]
+    or the legacy flat format:
+      general_service_ids: [1, 2], general_service_price: 200 (same price applied to each id)
+    Returns (ids, price_map) where price_map maps id -> Decimal price.
+    """
+    from decimal import Decimal
+
+    general_services = data.get('general_services')
+    if general_services:
+        price_map = {
+            int(gs['general_service_id']): Decimal(str(gs.get('price') or 0))
+            for gs in general_services
+        }
+        return list(price_map.keys()), price_map
+
+    ids = [int(gs_id) for gs_id in data.get('general_service_ids', [])]
+    flat_price = data.get('general_service_price')
+    flat_price = Decimal(str(flat_price)) if flat_price else Decimal('0')
+    return ids, {gs_id: flat_price for gs_id in ids}
+
+
 def _price_line(line):
     from decimal import Decimal, ROUND_HALF_UP
 
@@ -1781,9 +1804,8 @@ def api_reservation_pricing(request):
     from decimal import Decimal
     from accounts.models import GeneralService
 
-    reservation_id        = request.data.get('reservation_id')
-    general_service_ids   = request.data.get('general_service_ids', [])
-    general_service_price = request.data.get('general_service_price')
+    reservation_id = request.data.get('reservation_id')
+    general_service_ids, general_service_price_map = _parse_general_services(request.data)
 
     if not reservation_id:
         return Response({'error': 'reservation_id is required.'}, status=status.HTTP_400_BAD_REQUEST)
@@ -1799,20 +1821,19 @@ def api_reservation_pricing(request):
         items.extend(_collect_mapping_items(mapping, 'body_mapping'))
 
     # Selected general services
-    if general_service_ids:
-        gs_price = Decimal(str(general_service_price)) if general_service_price else Decimal('0')
-        for gs in GeneralService.objects.filter(pk__in=general_service_ids):
-            items.append({
-                'source':       'general_service',
-                'zone_label':   None,
-                'service_name': None,
-                'line_type':    'general_service',
-                'name':         gs.name,
-                'clinic_fees':  str(gs.clinic_fees) if gs.clinic_fees else None,
-                'detail':       '1 service',
-                'unit_price':   str(gs_price),
-                'total':        str(gs_price),
-            })
+    for gs in GeneralService.objects.filter(pk__in=general_service_ids):
+        gs_price = general_service_price_map.get(gs.id, Decimal('0'))
+        items.append({
+            'source':       'general_service',
+            'zone_label':   None,
+            'service_name': None,
+            'line_type':    'general_service',
+            'name':         gs.name,
+            'clinic_fees':  str(gs.clinic_fees) if gs.clinic_fees else None,
+            'detail':       '1 service',
+            'unit_price':   str(gs_price),
+            'total':        str(gs_price),
+        })
 
     grand_total = sum(Decimal(i['total']) for i in items)
 
