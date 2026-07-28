@@ -938,10 +938,16 @@ def api_reservation_prescription(request, pk):
         ReservationGeneralServicePrice.objects.filter(reservation=reservation).exclude(
             general_service_id__in=general_service_ids
         ).delete()
+        clinic_fees_map = dict(
+            GeneralService.objects.filter(pk__in=general_service_ids).values_list('id', 'clinic_fees')
+        )
         for gs_id in general_service_ids:
             ReservationGeneralServicePrice.objects.update_or_create(
                 reservation=reservation, general_service_id=gs_id,
-                defaults={'price': general_service_price_map.get(gs_id, Decimal('0'))},
+                defaults={
+                    'price':       general_service_price_map.get(gs_id, Decimal('0')),
+                    'clinic_fees': clinic_fees_map.get(gs_id),
+                },
             )
 
     # ── Apply package usage ───────────────────────────────────────────────────
@@ -2101,10 +2107,25 @@ def api_daily_payment_summary(request):
         reservation_qs = reservation_qs.filter(doctor__user__pk=doctor_id)
 
     from accounts.models import GeneralService
-    gs_ids = reservation_qs.values_list('general_services', flat=True)
-    total_clinic_fees = GeneralService.objects.filter(pk__in=gs_ids).aggregate(
+
+    # Clinic fees are snapshotted per-reservation at finish-time (ReservationGeneralServicePrice),
+    # so later edits to a service's clinic_fees don't retroactively change past reports.
+    # Reservations finished before that snapshot existed have no rows here — fall back to the
+    # live GeneralService.clinic_fees for those only.
+    snapshot_qs = ReservationGeneralServicePrice.objects.filter(
+        reservation__in=reservation_qs, clinic_fees__isnull=False,
+    )
+    snapshot_clinic_fees = snapshot_qs.aggregate(s=Sum('clinic_fees'))['s'] or Decimal('0')
+
+    reservations_with_snapshot = snapshot_qs.values_list('reservation_id', flat=True).distinct()
+    legacy_gs_ids = reservation_qs.exclude(pk__in=reservations_with_snapshot).values_list(
+        'general_services', flat=True
+    )
+    legacy_clinic_fees = GeneralService.objects.filter(pk__in=legacy_gs_ids).aggregate(
         s=Sum('clinic_fees')
     )['s'] or Decimal('0')
+
+    total_clinic_fees = snapshot_clinic_fees + legacy_clinic_fees
 
     total_gs_price = reservation_qs.aggregate(
         s=Sum('general_service_price')
@@ -2137,7 +2158,7 @@ def api_export_invoices(request):
 
     qs = Invoice.objects.filter(status=Invoice.Status.PAID).select_related(
         'reservation__patient', 'reservation__doctor__user', 'reservation__branch', 'patient'
-    ).prefetch_related('reservation__general_services')
+    ).prefetch_related('reservation__general_services', 'reservation__general_service_prices')
 
     if date_from:
         qs = qs.filter(reservation__date_of_visit__gte=date_from)
@@ -2160,7 +2181,11 @@ def api_export_invoices(request):
         date_of_visit = str(res.date_of_visit) if res else ''
         gs_list       = list(res.general_services.all()) if res else []
         gs_names      = ', '.join(gs.name for gs in gs_list)
-        total_clinic_fees = sum((gs.clinic_fees or Decimal('0')) for gs in gs_list)
+        gsp_list      = list(res.general_service_prices.all()) if res else []
+        if gsp_list:
+            total_clinic_fees = sum((gsp.clinic_fees or Decimal('0')) for gsp in gsp_list)
+        else:
+            total_clinic_fees = sum((gs.clinic_fees or Decimal('0')) for gs in gs_list)
         cost          = str(inv.total)
         ws.append([patient_name, gs_names, cost, str(total_clinic_fees), doctor_name, date_of_visit])
 
