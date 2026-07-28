@@ -193,7 +193,7 @@ def api_reservations(request):
     if request.method == 'GET':
         qs = Reservation.objects.select_related(
             'patient', 'branch', 'doctor__user'
-        ).order_by('-created_at')
+        ).order_by('date_of_visit', 'slot')
 
         search        = request.query_params.get('search', '').strip()
         branch_name   = request.query_params.get('branch_name', '').strip()
