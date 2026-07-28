@@ -77,18 +77,22 @@ class PatientSerializer(serializers.ModelSerializer):
 
 
 class ReservationSerializer(serializers.ModelSerializer):
-    patient_name   = serializers.SerializerMethodField()
-    patient_mobile = serializers.CharField(source='patient.mobile_number', read_only=True)
-    branch_name    = serializers.CharField(source='branch.name', read_only=True)
-    doctor_id      = serializers.IntegerField(source='doctor.user.id', read_only=True, default=None)
-    doctor_name    = serializers.CharField(source='doctor.user.name', read_only=True, default=None)
+    patient_name       = serializers.SerializerMethodField()
+    patient_mobile     = serializers.CharField(source='patient.mobile_number', read_only=True)
+    branch_name        = serializers.CharField(source='branch.name', read_only=True)
+    doctor_id          = serializers.IntegerField(source='doctor.user.id', read_only=True, default=None)
+    doctor_name        = serializers.CharField(source='doctor.user.name', read_only=True, default=None)
+    appointment_number = serializers.SerializerMethodField()
 
     class Meta:
         model = Reservation
         fields = (
             'id', 'patient_id', 'patient_name', 'patient_mobile', 'branch_name',
-            'doctor_id', 'doctor_name', 'date_of_visit', 'slot', 'status', 'created_at',
+            'doctor_id', 'doctor_name', 'appointment_number', 'date_of_visit', 'slot', 'status', 'created_at',
         )
+
+    def get_appointment_number(self, obj):
+        return self.context.get('appointment_numbers', {}).get(obj.id)
 
     def get_patient_name(self, obj):
         return obj.patient.full_name if obj.patient else None

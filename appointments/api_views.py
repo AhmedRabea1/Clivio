@@ -228,7 +228,23 @@ def api_reservations(request):
         paginator = PageNumberPagination()
         paginator.page_size = 10
         page = paginator.paginate_queryset(qs, request)
-        return paginator.get_paginated_response(ReservationSerializer(page, many=True).data)
+
+        # Appointment number = position of this reservation among all of the doctor's
+        # non-canceled reservations that day, ordered by slot. Computed independently of
+        # this request's own filters (search/patient_id/etc.) so it reflects the doctor's
+        # true daily queue position, not just where it falls within the filtered results.
+        doctor_date_pairs = {(r.doctor_id, r.date_of_visit) for r in page if r.doctor_id}
+        appointment_numbers = {}
+        for doctor_id, visit_date in doctor_date_pairs:
+            day_ids = Reservation.objects.filter(
+                doctor_id=doctor_id, date_of_visit=visit_date,
+            ).exclude(status=Reservation.Status.CANCELED).order_by('slot', 'created_at').values_list('id', flat=True)
+            for position, res_id in enumerate(day_ids, start=1):
+                appointment_numbers[res_id] = position
+
+        return paginator.get_paginated_response(
+            ReservationSerializer(page, many=True, context={'appointment_numbers': appointment_numbers}).data
+        )
 
     serializer = ReservationCreateSerializer(data=request.data)
     if serializer.is_valid():

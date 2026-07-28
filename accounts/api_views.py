@@ -864,6 +864,51 @@ def api_general_services(request):
     return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
 
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+def api_general_services_bulk(request):
+    """
+    POST /general-services/bulk
+    Creates the same general service (name + price + clinic_fees) for multiple doctors at once.
+    """
+    doctor_ids  = request.data.get('doctor_ids', [])
+    name        = request.data.get('name', '').strip()
+    price       = request.data.get('general_service_price')
+    clinic_fees = request.data.get('clinic_fees')
+
+    if not doctor_ids:
+        return Response({'error': 'doctor_ids is required.'}, status=status.HTTP_400_BAD_REQUEST)
+    if not name:
+        return Response({'error': 'name is required.'}, status=status.HTTP_400_BAD_REQUEST)
+
+    doctors     = list(Doctor.objects.filter(user__pk__in=doctor_ids).select_related('user'))
+    found_ids   = {doctor.user_id for doctor in doctors}
+    missing_ids = [d_id for d_id in doctor_ids if d_id not in found_ids]
+
+    created = []
+    skipped = []
+    for doctor in doctors:
+        service, was_created = GeneralService.objects.get_or_create(
+            doctor=doctor, name=name,
+            defaults={'general_service_price': price, 'clinic_fees': clinic_fees},
+        )
+        entry = {
+            'id':                    service.id,
+            'doctor_id':             doctor.user_id,
+            'doctor_name':           doctor.user.name,
+            'name':                  service.name,
+            'general_service_price': str(service.general_service_price) if service.general_service_price is not None else None,
+            'clinic_fees':           str(service.clinic_fees) if service.clinic_fees is not None else None,
+        }
+        (created if was_created else skipped).append(entry)
+
+    return Response({
+        'created':            created,
+        'skipped':            skipped,
+        'missing_doctor_ids': missing_ids,
+    }, status=status.HTTP_201_CREATED)
+
+
 @api_view(['GET', 'PATCH', 'DELETE'])
 @permission_classes([IsAuthenticated])
 def api_general_service_detail(request, pk):
