@@ -191,9 +191,14 @@ def api_reservations(request):
     POST /api/reservations  — create reservation by patient id
     """
     if request.method == 'GET':
+        sort_order   = request.query_params.get('sort', 'asc').strip().lower()
+        order_fields = ['date_of_visit', 'slot']
+        if sort_order == 'desc':
+            order_fields = [f'-{field}' for field in order_fields]
+
         qs = Reservation.objects.select_related(
             'patient', 'branch', 'doctor__user'
-        ).order_by('date_of_visit', 'slot')
+        ).order_by(*order_fields)
 
         search        = request.query_params.get('search', '').strip()
         branch_name   = request.query_params.get('branch_name', '').strip()
