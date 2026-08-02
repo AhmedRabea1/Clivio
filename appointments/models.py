@@ -68,6 +68,7 @@ class Reservation(models.Model):
     date_of_visit    = models.DateField()
     slot             = models.TimeField(null=True, blank=True)
     status           = models.CharField(max_length=20, choices=Status.choices, default=Status.PENDING)
+    arrival_date     = models.DateTimeField(null=True, blank=True)
     is_examination   = models.BooleanField(default=False)
     discount         = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True)
     general_services      = models.ManyToManyField(

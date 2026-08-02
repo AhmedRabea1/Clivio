@@ -88,7 +88,8 @@ class ReservationSerializer(serializers.ModelSerializer):
         model = Reservation
         fields = (
             'id', 'patient_id', 'patient_name', 'patient_mobile', 'branch_name',
-            'doctor_id', 'doctor_name', 'appointment_number', 'date_of_visit', 'slot', 'status', 'created_at',
+            'doctor_id', 'doctor_name', 'appointment_number', 'date_of_visit', 'slot', 'status',
+            'arrival_date', 'created_at',
         )
 
     def get_appointment_number(self, obj):
@@ -120,6 +121,7 @@ class ReservationUpdateSerializer(serializers.Serializer):
         return value
 
     def save(self, instance):
+        from django.utils import timezone
         from branches.models import Branch
         from accounts.models import Doctor
         data = self.validated_data
@@ -132,6 +134,8 @@ class ReservationUpdateSerializer(serializers.Serializer):
         if 'slot' in data:
             instance.slot = data['slot']
         if 'status' in data:
+            if data['status'] == Reservation.Status.ARRIVED and instance.status != Reservation.Status.ARRIVED:
+                instance.arrival_date = timezone.now()
             instance.status = data['status']
         instance.save()
         return instance
