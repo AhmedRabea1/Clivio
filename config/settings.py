@@ -193,7 +193,6 @@ WHYSMS_SENDER_ID = os.environ.get('WHYSMS_SENDER_ID', 'Clivio')
 # ─── Master backend integration ────────────────────────────────────────────────
 MASTER_BASE_URL       = os.environ.get('MASTER_BASE_URL', '')
 MASTER_CLINIC_API_KEY = os.environ.get('MASTER_CLINIC_API_KEY', '')  # inbound auth only (master -> here)
-MASTER_CLINIC_ID      = os.environ.get('MASTER_CLINIC_ID', '')       # this clinic's id in master's DB
 
 # ─── Logging ──────────────────────────────────────────────────────────────────
 LOGGING = {

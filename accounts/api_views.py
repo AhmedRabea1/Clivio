@@ -23,7 +23,6 @@ from .serializers import (
     PulsePackageSerializer, AreaPackageSerializer, DoctorMedicineSerializer,
     GeneralServiceSerializer,
 )
-from .utils import get_master_status
 from branches.models import Branch, UserBranchAssignment
 
 
@@ -129,13 +128,6 @@ def api_login(request):
     if not user.is_active:
         return Response(
             {'error': 'This account has been deactivated.'},
-            status=status.HTTP_403_FORBIDDEN,
-        )
-
-    master_status = get_master_status()
-    if not master_status.get('is_active', True) or master_status.get('is_expired', False):
-        return Response(
-            {'error': 'This clinic\'s subscription is suspended or expired. Contact support.'},
             status=status.HTTP_403_FORBIDDEN,
         )
 
