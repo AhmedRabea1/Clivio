@@ -310,7 +310,7 @@ class AssistantCreateSerializer(serializers.Serializer):
             assistant.branches.set(branch_ids)
         if role_ids:
             assistant.roles.set(role_ids)
-        notify_master_user_created(user, clinic_id)
+        assistant.master_sync = notify_master_user_created(user, clinic_id)
         return assistant
 
     def update(self, instance, validated_data):
@@ -443,7 +443,7 @@ class DoctorCreateSerializer(serializers.Serializer):
             price_per_consultation=validated_data.get('price_per_consultation'),
         )
         self._save_schedules(user, branch_schedules, request)
-        notify_master_user_created(user, clinic_id)
+        doctor.master_sync = notify_master_user_created(user, clinic_id)
         return doctor
 
     def update(self, instance, validated_data):

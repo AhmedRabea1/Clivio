@@ -468,7 +468,9 @@ def api_doctors(request):
     serializer = DoctorCreateSerializer(data=request.data, context={'request': request})
     if serializer.is_valid():
         doctor = serializer.save()
-        return Response(DoctorSerializer(doctor).data, status=status.HTTP_201_CREATED)
+        data = DoctorSerializer(doctor).data
+        data['master_sync'] = doctor.master_sync
+        return Response(data, status=status.HTTP_201_CREATED)
     return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
 
@@ -539,7 +541,9 @@ def api_assistants(request):
     serializer = AssistantCreateSerializer(data=request.data, context={'request': request})
     if serializer.is_valid():
         assistant = serializer.save()
-        return Response(AssistantSerializer(assistant).data, status=status.HTTP_201_CREATED)
+        data = AssistantSerializer(assistant).data
+        data['master_sync'] = assistant.master_sync
+        return Response(data, status=status.HTTP_201_CREATED)
     return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
 
