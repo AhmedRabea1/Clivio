@@ -83,17 +83,21 @@ class ReservationSerializer(serializers.ModelSerializer):
     doctor_id          = serializers.IntegerField(source='doctor.user.id', read_only=True, default=None)
     doctor_name        = serializers.CharField(source='doctor.user.name', read_only=True, default=None)
     appointment_number = serializers.SerializerMethodField()
+    must_pay           = serializers.SerializerMethodField()
 
     class Meta:
         model = Reservation
         fields = (
             'id', 'patient_id', 'patient_name', 'patient_mobile', 'branch_name',
             'doctor_id', 'doctor_name', 'appointment_number', 'date_of_visit', 'slot', 'status',
-            'arrival_date', 'created_at',
+            'arrival_date', 'must_pay', 'created_at',
         )
 
     def get_appointment_number(self, obj):
         return self.context.get('appointment_numbers', {}).get(obj.id)
+
+    def get_must_pay(self, obj):
+        return obj.patient_id in self.context.get('unpaid_patient_ids', set())
 
     def get_patient_name(self, obj):
         return obj.patient.full_name if obj.patient else None

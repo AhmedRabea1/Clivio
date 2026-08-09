@@ -55,8 +55,8 @@ def _set_patient_packages(patient, packages_data):
                 patient=patient,
                 subtotal=package.price,
                 total=package.price,
-                paid_amount=package.price,
-                status=Invoice.Status.PAID,
+                paid_amount=Decimal('0'),
+                status=Invoice.Status.PENDING,
             )
 
         elif pkg_type == 2:
@@ -74,8 +74,8 @@ def _set_patient_packages(patient, packages_data):
                 patient=patient,
                 subtotal=package.price,
                 total=package.price,
-                paid_amount=package.price,
-                status=Invoice.Status.PAID,
+                paid_amount=Decimal('0'),
+                status=Invoice.Status.PENDING,
             )
 
 
@@ -247,8 +247,23 @@ def api_reservations(request):
             for position, res_id in enumerate(day_ids, start=1):
                 appointment_numbers[res_id] = position
 
+        # must_pay = patient has any unpaid (pending/partial) invoice anywhere, whether tied
+        # to a reservation or a patient-level package invoice — not just this reservation.
+        patient_ids = {r.patient_id for r in page}
+        unpaid_patient_ids = set()
+        unpaid_pairs = Invoice.objects.filter(
+            status__in=[Invoice.Status.PENDING, Invoice.Status.PARTIAL],
+        ).filter(
+            Q(reservation__patient_id__in=patient_ids) | Q(patient_id__in=patient_ids)
+        ).values_list('reservation__patient_id', 'patient_id')
+        for res_patient_id, direct_patient_id in unpaid_pairs:
+            unpaid_patient_ids.add(res_patient_id or direct_patient_id)
+
         return paginator.get_paginated_response(
-            ReservationSerializer(page, many=True, context={'appointment_numbers': appointment_numbers}).data
+            ReservationSerializer(page, many=True, context={
+                'appointment_numbers': appointment_numbers,
+                'unpaid_patient_ids':  unpaid_patient_ids,
+            }).data
         )
 
     serializer = ReservationCreateSerializer(data=request.data)
@@ -1166,6 +1181,8 @@ def api_invoice_pay(request, pk):
     if int(payment_type) not in InvoicePayment.PaymentType.values:
         return Response({'error': 'Invalid payment_type. 1=Instapay, 2=Cash, 3=Visa'}, status=status.HTTP_400_BAD_REQUEST)
 
+    is_first_payment = invoice.status == Invoice.Status.PENDING
+
     new_payment = Decimal(str(amount_paid))
     invoice.paid_amount = min(invoice.total, invoice.paid_amount + new_payment)
     invoice.status      = Invoice.Status.PAID if invoice.paid_amount >= invoice.total else Invoice.Status.PARTIAL
@@ -1177,8 +1194,8 @@ def api_invoice_pay(request, pk):
         payment_type=int(payment_type),
     )
 
-    # ── Trigger inventory when fully paid ─────────────────────────────────────
-    if invoice.status == Invoice.Status.PAID and invoice.reservation_id:
+    # ── Trigger inventory on the first payment (partial or full), not just full payment ──
+    if is_first_payment and invoice.reservation_id:
         _run_inventory_decrement(invoice.reservation_id)
 
     # ── Generate invoice PDF ──────────────────────────────────────────────────
@@ -1298,13 +1315,14 @@ def api_invoice_bulk_pay(request):
     for inv in invoices:
         if budget <= 0:
             break
+        is_first_payment = inv.status == Invoice.Status.PENDING
         owed = inv.remaining
         pay  = min(budget, owed)
         inv.paid_amount += pay
         inv.status = Invoice.Status.PAID if inv.paid_amount >= inv.total else Invoice.Status.PARTIAL
         inv.save(update_fields=['paid_amount', 'status'])
         budget -= pay
-        if inv.status == Invoice.Status.PAID and inv.reservation_id:
+        if is_first_payment and inv.reservation_id:
             _run_inventory_decrement(inv.reservation_id)
         results.append({
             'invoice_id':  inv.id,
