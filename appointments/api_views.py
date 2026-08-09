@@ -27,6 +27,26 @@ from .serializers import (
 )
 
 
+def _name_mobile_search_q(search, prefix=''):
+    """
+    Requires every whitespace-separated word in `search` to match somewhere in
+    first_name/last_name/mobile_number (optionally via a related-field lookup prefix,
+    e.g. 'patient'), regardless of which field each word falls in. This makes a full-name
+    search like "Mohamed Tarek" match even though "Mohamed" is the first_name and "Tarek"
+    is the last_name — a plain OR-per-field search would miss it since neither field
+    alone contains the full string.
+    """
+    p = f'{prefix}__' if prefix else ''
+    q = Q()
+    for word in search.split():
+        q &= (
+            Q(**{f'{p}first_name__icontains': word}) |
+            Q(**{f'{p}last_name__icontains': word}) |
+            Q(**{f'{p}mobile_number__icontains': word})
+        )
+    return q
+
+
 # ─── Patient helpers ──────────────────────────────────────────────────────────
 
 def _set_patient_packages(patient, packages_data):
@@ -94,11 +114,7 @@ def api_patients(request):
         doctor_id  = request.query_params.get('doctor_id', '').strip()
         service_id = request.query_params.get('service_id', '').strip()
         if search:
-            qs = qs.filter(
-                Q(first_name__icontains=search) |
-                Q(last_name__icontains=search) |
-                Q(mobile_number__icontains=search)
-            )
+            qs = qs.filter(_name_mobile_search_q(search))
         if doctor_id:
             qs = qs.filter(reservations__doctor__user__pk=doctor_id).distinct()
         if service_id:
@@ -208,11 +224,7 @@ def api_reservations(request):
         res_status    = request.query_params.get('status', '').strip()
 
         if search:
-            qs = qs.filter(
-                Q(patient__first_name__icontains=search) |
-                Q(patient__last_name__icontains=search)  |
-                Q(patient__mobile_number__icontains=search)
-            )
+            qs = qs.filter(_name_mobile_search_q(search, prefix='patient'))
         if branch_name:
             qs = qs.filter(branch__name__icontains=branch_name)
         if doctor_name:
@@ -1085,10 +1097,8 @@ def api_invoices(request):
         qs = qs.filter(status=status_filter)
     if search:
         qs = qs.filter(
-            Q(reservation__patient__first_name__icontains=search) |
-            Q(reservation__patient__last_name__icontains=search)  |
-            Q(patient__first_name__icontains=search)              |
-            Q(patient__last_name__icontains=search)
+            _name_mobile_search_q(search, prefix='reservation__patient') |
+            _name_mobile_search_q(search, prefix='patient')
         )
     if visit_date:
         qs = qs.filter(reservation__date_of_visit=visit_date)
