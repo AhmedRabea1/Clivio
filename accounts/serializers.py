@@ -1,5 +1,6 @@
 from rest_framework import serializers
 from .models import User, Clinic, Configuration, Doctor, AssistantRole, Assistant, Service, Product, Machine, PulsePackage, AreaPackage, DoctorMedicine, GeneralService
+from .utils import notify_master_user_created
 
 
 class ClinicSerializer(serializers.ModelSerializer):
@@ -252,6 +253,7 @@ class AssistantCreateSerializer(serializers.Serializer):
     email = serializers.EmailField()
     phone = serializers.CharField(max_length=30)
     password = serializers.CharField(write_only=True, min_length=6)
+    clinic_id = serializers.IntegerField()
     branch_ids = serializers.ListField(
         child=serializers.IntegerField(), required=False, default=list
     )
@@ -291,6 +293,7 @@ class AssistantCreateSerializer(serializers.Serializer):
         request = self.context.get('request')
         role_ids   = validated_data.pop('role_ids', [])
         branch_ids = validated_data.pop('branch_ids', [])
+        clinic_id  = validated_data.pop('clinic_id')
 
         user = User.objects.create_user(
             email=validated_data['email'],
@@ -307,6 +310,7 @@ class AssistantCreateSerializer(serializers.Serializer):
             assistant.branches.set(branch_ids)
         if role_ids:
             assistant.roles.set(role_ids)
+        notify_master_user_created(user, clinic_id)
         return assistant
 
     def update(self, instance, validated_data):
@@ -387,6 +391,7 @@ class DoctorCreateSerializer(serializers.Serializer):
     price_per_examination   = serializers.DecimalField(max_digits=10, decimal_places=2, required=False, allow_null=True)
     price_per_consultation  = serializers.DecimalField(max_digits=10, decimal_places=2, required=False, allow_null=True)
     password = serializers.CharField(write_only=True, min_length=6)
+    clinic_id = serializers.IntegerField()
     branch_schedules = BranchScheduleSerializer(many=True, required=False)
 
     def validate_email(self, value):
@@ -420,6 +425,7 @@ class DoctorCreateSerializer(serializers.Serializer):
 
     def create(self, validated_data):
         branch_schedules = validated_data.pop('branch_schedules', [])
+        clinic_id = validated_data.pop('clinic_id')
         request = self.context.get('request')
         user = User.objects.create_user(
             email=validated_data['email'],
@@ -437,6 +443,7 @@ class DoctorCreateSerializer(serializers.Serializer):
             price_per_consultation=validated_data.get('price_per_consultation'),
         )
         self._save_schedules(user, branch_schedules, request)
+        notify_master_user_created(user, clinic_id)
         return doctor
 
     def update(self, instance, validated_data):

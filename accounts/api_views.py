@@ -13,7 +13,7 @@ from rest_framework.response import Response
 from rest_framework_simplejwt.tokens import RefreshToken
 from rest_framework_simplejwt.exceptions import TokenError
 
-from .models import User, Configuration, Doctor, AssistantRole, Assistant, Service, Product, Machine, PulsePackage, AreaPackage, DoctorMedicine, GeneralService
+from .models import User, Configuration, Clinic, Doctor, AssistantRole, Assistant, Service, Product, Machine, PulsePackage, AreaPackage, DoctorMedicine, GeneralService
 from .serializers import (
     LoginSerializer, UserSerializer,
     UserCreateSerializer, UserUpdateBranchesSerializer,
@@ -23,6 +23,7 @@ from .serializers import (
     PulsePackageSerializer, AreaPackageSerializer, DoctorMedicineSerializer,
     GeneralServiceSerializer,
 )
+from .utils import get_master_status
 from branches.models import Branch, UserBranchAssignment
 
 
@@ -128,6 +129,13 @@ def api_login(request):
     if not user.is_active:
         return Response(
             {'error': 'This account has been deactivated.'},
+            status=status.HTTP_403_FORBIDDEN,
+        )
+
+    master_status = get_master_status()
+    if not master_status.get('is_active', True) or master_status.get('is_expired', False):
+        return Response(
+            {'error': 'This clinic\'s subscription is suspended or expired. Contact support.'},
             status=status.HTTP_403_FORBIDDEN,
         )
 
@@ -243,6 +251,80 @@ def api_reset_password(request):
         return Response({'message': 'Password updated successfully.'})
     except User.DoesNotExist:
         return Response({'error': 'User not found.'}, status=status.HTTP_404_NOT_FOUND)
+
+
+def _send_set_password_email(user):
+    """Same reset-token mechanism as forgot-password, just a longer-lived first-time invite link."""
+    token = get_random_string(64)
+    cache.set(f'pwd_reset_{token}', user.id, 60 * 60 * 24 * 7)  # 7 days
+    reset_url = f'{settings.FRONTEND_URL}/reset-password?token={token}'
+    send_mail(
+        subject='Welcome to Clivio — set your password',
+        message=f'Hi {user.name},\n\nYour account has been created. Set your password to get started:\n{reset_url}\n\nThis link expires in 7 days.',
+        from_email=settings.DEFAULT_FROM_EMAIL,
+        recipient_list=[user.email],
+        fail_silently=True,
+    )
+
+
+@api_view(['POST'])
+@permission_classes([AllowAny])
+def api_provision_user(request):
+    """
+    POST /api/directory/provision-user/
+    Called by the master backend to upsert a staff user's identity + role.
+    Auth: X-Master-Api-Key header, constant-time compared against MASTER_CLINIC_API_KEY.
+    Establishes identity + role only — no password. New users get a "set your
+    password" email via the existing reset-token flow.
+    """
+    import hmac
+
+    provided_key = request.headers.get('X-Master-Api-Key', '')
+    expected_key = settings.MASTER_CLINIC_API_KEY
+    if not expected_key or not hmac.compare_digest(provided_key, expected_key):
+        return Response({'error': 'Invalid or missing API key.'}, status=status.HTTP_403_FORBIDDEN)
+
+    email     = request.data.get('email', '').strip().lower()
+    role      = request.data.get('role', '').strip().lower()
+    is_active = request.data.get('is_active', True)
+
+    if not email:
+        return Response({'error': 'email is required.'}, status=status.HTTP_400_BAD_REQUEST)
+    if role not in (User.Role.DOCTOR, User.Role.ASSISTANT):
+        return Response({'error': 'role must be "doctor" or "assistant".'}, status=status.HTTP_400_BAD_REQUEST)
+
+    clinic = Clinic.objects.first()
+
+    user, created = User.objects.get_or_create(
+        email=email,
+        defaults={
+            'name':                 email.split('@')[0],
+            'role':                 role,
+            'clinic':               clinic,
+            'is_active':            is_active,
+            'must_change_password': True,
+        },
+    )
+    if created:
+        user.set_password(get_random_string(32))
+        user.save(update_fields=['password'])
+        _send_set_password_email(user)
+    else:
+        user.role      = role
+        user.is_active = is_active
+        if clinic:
+            user.clinic = clinic
+        user.save(update_fields=['role', 'is_active', 'clinic'])
+
+    if role == User.Role.DOCTOR:
+        Doctor.objects.get_or_create(user=user)
+    elif role == User.Role.ASSISTANT:
+        Assistant.objects.get_or_create(user=user)
+
+    return Response(
+        {'id': user.id, 'email': user.email, 'role': user.role, 'is_active': user.is_active, 'created': created},
+        status=status.HTTP_201_CREATED if created else status.HTTP_200_OK,
+    )
 
 
 # ─── User endpoints ────────────────────────────────────────────────────────────
