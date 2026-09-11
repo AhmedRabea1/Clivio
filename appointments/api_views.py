@@ -825,121 +825,92 @@ def _generate_prescription_from_template(patient_name, medicines):
     return buffer.getvalue()
 
 
-def _generate_prescription_pdf(doctor_name, patient_name, medicines, clinic_name, logo_url):
+def _generate_prescription_pdf(doctor_name, patient_name, patient_age, medicines, clinic_name, logo_url):
     """
     Uses the clinic's own prescription letterhead PDF (PRESCRIPTION_TEMPLATE_PATH) as
-    the page background when one is configured, overlaying doctor/patient/medicine
-    text onto it. Falls back to fully generating the PDF from scratch (logo + clinic
-    name drawn in) when no template is set — existing behavior, unchanged.
+    the page background when one is configured, filling in its patient name/age/date
+    blanks and listing medicines below its RX/ line. Falls back to fully generating
+    the PDF from scratch (logo + clinic name drawn in) when no template is set —
+    existing behavior, unchanged.
     """
     import os
     from django.conf import settings
 
     template_path = getattr(settings, 'PRESCRIPTION_TEMPLATE_PATH', '')
     if template_path and os.path.isfile(template_path):
-        top_margin_cm = getattr(settings, 'PRESCRIPTION_TEMPLATE_TOP_MARGIN_CM', 6)
-        return _overlay_prescription_onto_template(
-            doctor_name, patient_name, medicines, template_path, top_margin_cm
-        )
+        return _overlay_prescription_onto_template(patient_name, patient_age, medicines, template_path)
     return _generate_prescription_pdf_default(doctor_name, patient_name, medicines, clinic_name, logo_url)
 
 
-def _overlay_prescription_onto_template(doctor_name, patient_name, medicines, template_path, top_margin_cm):
-    from io import BytesIO
+def _overlay_prescription_onto_template(patient_name, patient_age, medicines, template_path):
+    """
+    Draws directly onto the clinic's real letterhead page (via PyMuPDF) instead of
+    generating a separate PDF and merging it in — merging two independently-built
+    PDFs (previously via pypdf) corrupted embedded font glyph tables whenever both
+    pages used non-Latin1 fonts, causing Arabic text to render as blank boxes.
+    Drawing onto the same page object avoids that entirely.
+
+    Coordinates below are measured against this clinic's actual template layout
+    (PATIENT NAME / AGE / DATE line, and the RX/ line) — they're specific to this
+    one template, not a generic layout.
+    """
+    import fitz
     from datetime import date
     from django.conf import settings
-    from reportlab.lib.units import cm
-    from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
-    from reportlab.lib.colors import HexColor
-    from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle
-    from reportlab.lib.enums import TA_LEFT, TA_RIGHT
-    from reportlab.pdfbase import pdfmetrics
-    from reportlab.pdfbase.ttfonts import TTFont
     import arabic_reshaper
     from bidi.algorithm import get_display
-    from pypdf import PdfReader, PdfWriter
 
-    PRIMARY = HexColor('#2563EB')
-    LIGHT   = HexColor('#F3F4F6')
-    BORDER  = HexColor('#E5E7EB')
-
-    # Register an Arabic-capable font — medicine descriptions and names can contain
-    # Arabic text, and ReportLab's default Helvetica has no Arabic glyphs at all
-    # (encoding Arabic into it raises an exception and crashes PDF generation).
-    font_path = settings.MEDIA_ROOT / 'arabic.ttf'
-    if font_path.exists():
-        pdfmetrics.registerFont(TTFont('Arabic', str(font_path)))
-        pdfmetrics.registerFontFamily(
-            'Arabic', normal='Arabic', bold='Arabic', italic='Arabic', boldItalic='Arabic'
-        )
-        body_font = 'Arabic'
-    else:
-        body_font = 'Helvetica'
+    def has_arabic(text):
+        return any('؀' <= ch <= 'ۿ' for ch in text)
 
     def render_text(text):
+        text = str(text)
+        if not has_arabic(text):
+            return text
         try:
             return get_display(arabic_reshaper.reshape(text))
         except Exception:
             return text
 
-    template_reader = PdfReader(template_path)
-    template_page    = template_reader.pages[0]
-    page_width  = float(template_page.mediabox.width)
-    page_height = float(template_page.mediabox.height)
-    content_width = page_width - 5 * cm  # 2.5cm side margins, matching below
+    doc = fitz.open(template_path)
+    page = doc[0]
 
-    overlay_buffer = BytesIO()
-    doc = SimpleDocTemplate(
-        overlay_buffer, pagesize=(page_width, page_height),
-        rightMargin=2.5 * cm, leftMargin=2.5 * cm,
-        topMargin=top_margin_cm * cm, bottomMargin=2 * cm,
-    )
-    styles = getSampleStyleSheet()
-    story  = []
+    latin_font_path    = settings.MEDIA_ROOT / 'montserrat.ttf'
+    arabic_font_path   = settings.MEDIA_ROOT / 'alexandria.ttf'
+    latin_font_name    = 'latinfont'
+    arabic_font_name   = 'arabicfont'
+    if latin_font_path.exists():
+        page.insert_font(fontname=latin_font_name, fontfile=str(latin_font_path))
+    else:
+        latin_font_name = 'helv'  # PyMuPDF's built-in Helvetica
+    if arabic_font_path.exists():
+        page.insert_font(fontname=arabic_font_name, fontfile=str(arabic_font_path))
+    else:
+        arabic_font_name = latin_font_name
 
-    today = date.today().strftime('%d %B %Y')
-    L = ParagraphStyle('L', parent=styles['Normal'], fontSize=11, alignment=TA_LEFT, fontName=body_font)
-    R = ParagraphStyle('R', parent=styles['Normal'], fontSize=11, alignment=TA_RIGHT, fontName=body_font)
-    info = Table([
-        [Paragraph(f'<b>Doctor:</b>  {render_text(doctor_name)}',  L), Paragraph(f'<b>Date:</b>  {today}', R)],
-        [Paragraph(f'<b>Patient:</b>  {render_text(patient_name)}', L), Paragraph('', R)],
-    ], colWidths=[content_width * 0.55, content_width * 0.45])
-    info.setStyle(TableStyle([
-        ('BACKGROUND',   (0, 0), (-1, -1), LIGHT),
-        ('BOX',          (0, 0), (-1, -1), 0.5, BORDER),
-        ('INNERGRID',    (0, 0), (-1, -1), 0.25, BORDER),
-        ('LEFTPADDING',  (0, 0), (-1, -1), 10),
-        ('RIGHTPADDING', (0, 0), (-1, -1), 10),
-        ('TOPPADDING',   (0, 0), (-1, -1), 8),
-        ('BOTTOMPADDING', (0, 0), (-1, -1), 8),
-    ]))
-    story.append(info)
-    story.append(Spacer(1, 0.6 * cm))
+    def draw(point, text, fontsize=11):
+        text = str(text)
+        font = arabic_font_name if has_arabic(text) else latin_font_name
+        page.insert_text(point, render_text(text), fontsize=fontsize, fontname=font, color=(0, 0, 0))
 
-    story.append(Paragraph('&#8478;  Prescription', ParagraphStyle(
-        'Rx', fontSize=17, textColor=PRIMARY,
-        fontName='Helvetica-Bold', spaceAfter=12,
-    )))
+    # ── Fill in the PATIENT NAME / AGE / DATE blanks ──────────────────────────
+    draw((136, 150), patient_name, fontsize=11)
+    if patient_age is not None:
+        draw((281, 150), f'{patient_age}', fontsize=11)
+    draw((489, 150), date.today().strftime('%d/%m/%Y'), fontsize=11)
 
-    med_style = ParagraphStyle('Med', parent=styles['Normal'], fontSize=12, leftIndent=8, spaceAfter=10, fontName=body_font)
+    # ── Medicines, listed below the RX/ line ──────────────────────────────────
+    y = 235
+    line_height = 24
     for i, med in enumerate(medicines, 1):
-        story.append(Paragraph(f'<b>{i}.</b>  {render_text(med.get("description", ""))}', med_style))
+        draw((70, y), f'{i}. {med.get("description", "")}', fontsize=12)
+        y += line_height
+        if y > page.rect.height - 100:
+            break
 
-    doc.build(story)
-    overlay_buffer.seek(0)
-
-    overlay_reader = PdfReader(overlay_buffer)
-    writer = PdfWriter()
-    merged_page = template_reader.pages[0]
-    merged_page.merge_page(overlay_reader.pages[0])
-    writer.add_page(merged_page)
-    for extra_page in template_reader.pages[1:]:
-        writer.add_page(extra_page)
-
-    out_buffer = BytesIO()
-    writer.write(out_buffer)
-    out_buffer.seek(0)
-    return out_buffer.getvalue()
+    pdf_bytes = doc.write()
+    doc.close()
+    return pdf_bytes
 
 
 def _generate_prescription_pdf_default(doctor_name, patient_name, medicines, clinic_name, logo_url):
@@ -1160,12 +1131,18 @@ def api_reservation_prescription(request, pk):
     timestamp    = datetime.now().strftime('%Y-%m-%d')
     doctor_name  = doctor.user.name
     patient_name = patient.full_name
+    patient_age  = None
+    if patient.date_of_birth:
+        today_date = datetime.now().date()
+        dob = patient.date_of_birth
+        patient_age = today_date.year - dob.year - ((today_date.month, today_date.day) < (dob.month, dob.day))
 
     prescription_url = None
     if medicines:
         prescription_pdf = _generate_prescription_pdf(
             doctor_name=doctor_name,
             patient_name=patient_name,
+            patient_age=patient_age,
             medicines=medicines,
             clinic_name=clinic_name,
             logo_url=logo_url,
