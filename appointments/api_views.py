@@ -826,6 +826,99 @@ def _generate_prescription_from_template(patient_name, medicines):
 
 
 def _generate_prescription_pdf(doctor_name, patient_name, medicines, clinic_name, logo_url):
+    """
+    Uses the clinic's own prescription letterhead PDF (PRESCRIPTION_TEMPLATE_PATH) as
+    the page background when one is configured, overlaying doctor/patient/medicine
+    text onto it. Falls back to fully generating the PDF from scratch (logo + clinic
+    name drawn in) when no template is set — existing behavior, unchanged.
+    """
+    import os
+    from django.conf import settings
+
+    template_path = getattr(settings, 'PRESCRIPTION_TEMPLATE_PATH', '')
+    if template_path and os.path.isfile(template_path):
+        top_margin_cm = getattr(settings, 'PRESCRIPTION_TEMPLATE_TOP_MARGIN_CM', 6)
+        return _overlay_prescription_onto_template(
+            doctor_name, patient_name, medicines, template_path, top_margin_cm
+        )
+    return _generate_prescription_pdf_default(doctor_name, patient_name, medicines, clinic_name, logo_url)
+
+
+def _overlay_prescription_onto_template(doctor_name, patient_name, medicines, template_path, top_margin_cm):
+    from io import BytesIO
+    from datetime import date
+    from reportlab.lib.units import cm
+    from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
+    from reportlab.lib.colors import HexColor
+    from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle
+    from reportlab.lib.enums import TA_LEFT, TA_RIGHT
+    from pypdf import PdfReader, PdfWriter
+
+    PRIMARY = HexColor('#2563EB')
+    LIGHT   = HexColor('#F3F4F6')
+    BORDER  = HexColor('#E5E7EB')
+
+    template_reader = PdfReader(template_path)
+    template_page    = template_reader.pages[0]
+    page_width  = float(template_page.mediabox.width)
+    page_height = float(template_page.mediabox.height)
+    content_width = page_width - 5 * cm  # 2.5cm side margins, matching below
+
+    overlay_buffer = BytesIO()
+    doc = SimpleDocTemplate(
+        overlay_buffer, pagesize=(page_width, page_height),
+        rightMargin=2.5 * cm, leftMargin=2.5 * cm,
+        topMargin=top_margin_cm * cm, bottomMargin=2 * cm,
+    )
+    styles = getSampleStyleSheet()
+    story  = []
+
+    today = date.today().strftime('%d %B %Y')
+    L = ParagraphStyle('L', parent=styles['Normal'], fontSize=11, alignment=TA_LEFT)
+    R = ParagraphStyle('R', parent=styles['Normal'], fontSize=11, alignment=TA_RIGHT)
+    info = Table([
+        [Paragraph(f'<b>Doctor:</b>  {doctor_name}',  L), Paragraph(f'<b>Date:</b>  {today}', R)],
+        [Paragraph(f'<b>Patient:</b>  {patient_name}', L), Paragraph('', R)],
+    ], colWidths=[content_width * 0.55, content_width * 0.45])
+    info.setStyle(TableStyle([
+        ('BACKGROUND',   (0, 0), (-1, -1), LIGHT),
+        ('BOX',          (0, 0), (-1, -1), 0.5, BORDER),
+        ('INNERGRID',    (0, 0), (-1, -1), 0.25, BORDER),
+        ('LEFTPADDING',  (0, 0), (-1, -1), 10),
+        ('RIGHTPADDING', (0, 0), (-1, -1), 10),
+        ('TOPPADDING',   (0, 0), (-1, -1), 8),
+        ('BOTTOMPADDING', (0, 0), (-1, -1), 8),
+    ]))
+    story.append(info)
+    story.append(Spacer(1, 0.6 * cm))
+
+    story.append(Paragraph('&#8478;  Prescription', ParagraphStyle(
+        'Rx', fontSize=17, textColor=PRIMARY,
+        fontName='Helvetica-Bold', spaceAfter=12,
+    )))
+
+    med_style = ParagraphStyle('Med', parent=styles['Normal'], fontSize=12, leftIndent=8, spaceAfter=10)
+    for i, med in enumerate(medicines, 1):
+        story.append(Paragraph(f'<b>{i}.</b>  {med.get("description", "")}', med_style))
+
+    doc.build(story)
+    overlay_buffer.seek(0)
+
+    overlay_reader = PdfReader(overlay_buffer)
+    writer = PdfWriter()
+    merged_page = template_reader.pages[0]
+    merged_page.merge_page(overlay_reader.pages[0])
+    writer.add_page(merged_page)
+    for extra_page in template_reader.pages[1:]:
+        writer.add_page(extra_page)
+
+    out_buffer = BytesIO()
+    writer.write(out_buffer)
+    out_buffer.seek(0)
+    return out_buffer.getvalue()
+
+
+def _generate_prescription_pdf_default(doctor_name, patient_name, medicines, clinic_name, logo_url):
     from io import BytesIO
     from datetime import date
     from reportlab.lib.pagesizes import A4

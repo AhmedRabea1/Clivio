@@ -190,6 +190,12 @@ FRONTEND_URL = os.environ.get('FRONTEND_URL', 'http://localhost:3000')
 WHYSMS_API_TOKEN = os.environ.get('WHYSMS_API_TOKEN')
 WHYSMS_SENDER_ID = os.environ.get('WHYSMS_SENDER_ID', 'Clivio')
 
+# ─── Prescription letterhead ───────────────────────────────────────────────────
+# Absolute path on this machine to this clinic's own prescription-pad PDF. When set
+# and the file exists, prescriptions are printed onto it instead of a generic layout.
+PRESCRIPTION_TEMPLATE_PATH          = os.environ.get('PRESCRIPTION_TEMPLATE_PATH', '')
+PRESCRIPTION_TEMPLATE_TOP_MARGIN_CM = float(os.environ.get('PRESCRIPTION_TEMPLATE_TOP_MARGIN_CM', '6'))
+
 # ─── Master backend integration ────────────────────────────────────────────────
 MASTER_BASE_URL       = os.environ.get('MASTER_BASE_URL', '')
 MASTER_CLINIC_API_KEY = os.environ.get('MASTER_CLINIC_API_KEY', '')  # inbound auth only (master -> here)
