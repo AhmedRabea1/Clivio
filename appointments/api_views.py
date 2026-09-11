@@ -847,16 +847,40 @@ def _generate_prescription_pdf(doctor_name, patient_name, medicines, clinic_name
 def _overlay_prescription_onto_template(doctor_name, patient_name, medicines, template_path, top_margin_cm):
     from io import BytesIO
     from datetime import date
+    from django.conf import settings
     from reportlab.lib.units import cm
     from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
     from reportlab.lib.colors import HexColor
     from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle
     from reportlab.lib.enums import TA_LEFT, TA_RIGHT
+    from reportlab.pdfbase import pdfmetrics
+    from reportlab.pdfbase.ttfonts import TTFont
+    import arabic_reshaper
+    from bidi.algorithm import get_display
     from pypdf import PdfReader, PdfWriter
 
     PRIMARY = HexColor('#2563EB')
     LIGHT   = HexColor('#F3F4F6')
     BORDER  = HexColor('#E5E7EB')
+
+    # Register an Arabic-capable font — medicine descriptions and names can contain
+    # Arabic text, and ReportLab's default Helvetica has no Arabic glyphs at all
+    # (encoding Arabic into it raises an exception and crashes PDF generation).
+    font_path = settings.MEDIA_ROOT / 'arabic.ttf'
+    if font_path.exists():
+        pdfmetrics.registerFont(TTFont('Arabic', str(font_path)))
+        pdfmetrics.registerFontFamily(
+            'Arabic', normal='Arabic', bold='Arabic', italic='Arabic', boldItalic='Arabic'
+        )
+        body_font = 'Arabic'
+    else:
+        body_font = 'Helvetica'
+
+    def render_text(text):
+        try:
+            return get_display(arabic_reshaper.reshape(text))
+        except Exception:
+            return text
 
     template_reader = PdfReader(template_path)
     template_page    = template_reader.pages[0]
@@ -874,11 +898,11 @@ def _overlay_prescription_onto_template(doctor_name, patient_name, medicines, te
     story  = []
 
     today = date.today().strftime('%d %B %Y')
-    L = ParagraphStyle('L', parent=styles['Normal'], fontSize=11, alignment=TA_LEFT)
-    R = ParagraphStyle('R', parent=styles['Normal'], fontSize=11, alignment=TA_RIGHT)
+    L = ParagraphStyle('L', parent=styles['Normal'], fontSize=11, alignment=TA_LEFT, fontName=body_font)
+    R = ParagraphStyle('R', parent=styles['Normal'], fontSize=11, alignment=TA_RIGHT, fontName=body_font)
     info = Table([
-        [Paragraph(f'<b>Doctor:</b>  {doctor_name}',  L), Paragraph(f'<b>Date:</b>  {today}', R)],
-        [Paragraph(f'<b>Patient:</b>  {patient_name}', L), Paragraph('', R)],
+        [Paragraph(f'<b>Doctor:</b>  {render_text(doctor_name)}',  L), Paragraph(f'<b>Date:</b>  {today}', R)],
+        [Paragraph(f'<b>Patient:</b>  {render_text(patient_name)}', L), Paragraph('', R)],
     ], colWidths=[content_width * 0.55, content_width * 0.45])
     info.setStyle(TableStyle([
         ('BACKGROUND',   (0, 0), (-1, -1), LIGHT),
@@ -897,9 +921,9 @@ def _overlay_prescription_onto_template(doctor_name, patient_name, medicines, te
         fontName='Helvetica-Bold', spaceAfter=12,
     )))
 
-    med_style = ParagraphStyle('Med', parent=styles['Normal'], fontSize=12, leftIndent=8, spaceAfter=10)
+    med_style = ParagraphStyle('Med', parent=styles['Normal'], fontSize=12, leftIndent=8, spaceAfter=10, fontName=body_font)
     for i, med in enumerate(medicines, 1):
-        story.append(Paragraph(f'<b>{i}.</b>  {med.get("description", "")}', med_style))
+        story.append(Paragraph(f'<b>{i}.</b>  {render_text(med.get("description", ""))}', med_style))
 
     doc.build(story)
     overlay_buffer.seek(0)
