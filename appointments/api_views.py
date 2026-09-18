@@ -2280,6 +2280,32 @@ def api_daily_payment_summary(request):
 
     total_doctor_fees = total_gs_price - total_clinic_fees
 
+    # ── Clinic fees & doctor fees for machine/product Service lines ──────────
+    # These aren't snapshotted (no equivalent to ReservationGeneralServicePrice yet),
+    # so they're computed live from each service's current clinic_fees percentage —
+    # editing a service's percentage later will retroactively change this report.
+    service_reservation_qs = Reservation.objects.filter(
+        invoices__status=Invoice.Status.PAID,
+    ).distinct()
+    if date_from:
+        service_reservation_qs = service_reservation_qs.filter(date_of_visit__gte=date_from)
+    if date_to:
+        service_reservation_qs = service_reservation_qs.filter(date_of_visit__lte=date_to)
+    if doctor_id:
+        service_reservation_qs = service_reservation_qs.filter(doctor__user__pk=doctor_id)
+
+    service_reservation_ids = list(service_reservation_qs.values_list('id', flat=True))
+    for mapping in DermaFaceMapping.objects.filter(reservation_id__in=service_reservation_ids):
+        for item in _collect_mapping_items(mapping, 'face_mapping'):
+            if item.get('clinic_fees') is not None:
+                total_clinic_fees += Decimal(item['clinic_fees'])
+                total_doctor_fees += Decimal(item['doctor_fees'])
+    for mapping in DermaBodyMapping.objects.filter(reservation_id__in=service_reservation_ids):
+        for item in _collect_mapping_items(mapping, 'body_mapping'):
+            if item.get('clinic_fees') is not None:
+                total_clinic_fees += Decimal(item['clinic_fees'])
+                total_doctor_fees += Decimal(item['doctor_fees'])
+
     return Response({
         'date_from':          date_from,
         'date_to':            date_to,
@@ -2333,6 +2359,18 @@ def api_export_invoices(request):
             total_clinic_fees = sum((gsp.clinic_fees or Decimal('0')) for gsp in gsp_list)
         else:
             total_clinic_fees = sum((gs.clinic_fees or Decimal('0')) for gs in gs_list)
+
+        # Add clinic fees from machine/product Service lines (live, not snapshotted).
+        if res:
+            for mapping in DermaFaceMapping.objects.filter(reservation_id=res.id):
+                for item in _collect_mapping_items(mapping, 'face_mapping'):
+                    if item.get('clinic_fees') is not None:
+                        total_clinic_fees += Decimal(item['clinic_fees'])
+            for mapping in DermaBodyMapping.objects.filter(reservation_id=res.id):
+                for item in _collect_mapping_items(mapping, 'body_mapping'):
+                    if item.get('clinic_fees') is not None:
+                        total_clinic_fees += Decimal(item['clinic_fees'])
+
         cost          = str(inv.total)
         ws.append([patient_name, gs_names, cost, str(total_clinic_fees), doctor_name, date_of_visit])
 
