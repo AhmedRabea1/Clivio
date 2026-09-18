@@ -1947,6 +1947,8 @@ def _price_line(line):
 
 
 def _collect_mapping_items(mapping, source):
+    from decimal import Decimal, ROUND_HALF_UP
+
     items = []
     for zone in mapping.zones.prefetch_related(
         'zone_services__lines__product',
@@ -1962,12 +1964,31 @@ def _collect_mapping_items(mapping, source):
                     line.product.name if line.product_id else
                     line.machine.name if line.machine_id else ''
                 )
+                service = zone_service.service
+
+                # Clinic/doctor fee split, driven by the service's clinic_fees percentage
+                # (e.g. 90 means 90% of this line's total goes to the clinic, the rest to
+                # the doctor). Only computed when the service has one configured.
+                clinic_fees_percentage = None
+                clinic_fees = None
+                doctor_fees = None
+                if service and service.clinic_fees is not None:
+                    line_total = Decimal(pricing['total'])
+                    clinic_fees_percentage = service.clinic_fees
+                    clinic_fees = (line_total * clinic_fees_percentage / Decimal('100')).quantize(
+                        Decimal('0.01'), rounding=ROUND_HALF_UP
+                    )
+                    doctor_fees = line_total - clinic_fees
+
                 items.append({
-                    'source':       source,
-                    'zone_label':   zone.zone_label,
-                    'service_name': zone_service.service.name if zone_service.service_id else None,
-                    'line_type':    line.line_type,
-                    'name':         name,
+                    'source':                 source,
+                    'zone_label':             zone.zone_label,
+                    'service_name':           service.name if service else None,
+                    'line_type':              line.line_type,
+                    'name':                   name,
+                    'clinic_fees_percentage': str(clinic_fees_percentage) if clinic_fees_percentage is not None else None,
+                    'clinic_fees':            str(clinic_fees) if clinic_fees is not None else None,
+                    'doctor_fees':            str(doctor_fees) if doctor_fees is not None else None,
                     **pricing,
                 })
     return items
@@ -2010,11 +2031,15 @@ def api_reservation_pricing(request):
             'total':        str(gs_price),
         })
 
-    grand_total = sum(Decimal(i['total']) for i in items)
+    grand_total       = sum(Decimal(i['total']) for i in items)
+    grand_clinic_fees = sum(Decimal(i['clinic_fees']) for i in items if i.get('clinic_fees') is not None)
+    grand_doctor_fees = sum(Decimal(i['doctor_fees']) for i in items if i.get('doctor_fees') is not None)
 
     return Response({
-        'items':       items,
-        'grand_total': str(grand_total.quantize(Decimal('0.01'))),
+        'items':             items,
+        'grand_total':       str(grand_total.quantize(Decimal('0.01'))),
+        'grand_clinic_fees': str(grand_clinic_fees.quantize(Decimal('0.01'))),
+        'grand_doctor_fees': str(grand_doctor_fees.quantize(Decimal('0.01'))),
     })
 
 

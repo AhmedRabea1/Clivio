@@ -213,6 +213,8 @@ class Service(models.Model):
     name        = models.CharField(max_length=255, unique=True)
     description = models.TextField(blank=True, default='')
     category    = models.CharField(max_length=20, choices=Category.choices, default=Category.INJECTABLE)
+    # Percentage (0-100) of a line's total that goes to the clinic, e.g. 10 means 10%.
+    clinic_fees = models.DecimalField(max_digits=5, decimal_places=2, null=True, blank=True)
 
     class Meta:
         ordering = ['name']

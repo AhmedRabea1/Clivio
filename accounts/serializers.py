@@ -475,7 +475,7 @@ class ServiceSerializer(serializers.ModelSerializer):
 
     class Meta:
         model  = Service
-        fields = ('id', 'name', 'description', 'category', 'category_display')
+        fields = ('id', 'name', 'description', 'category', 'category_display', 'clinic_fees')
 
     def validate_name(self, value):
         qs = Service.objects.filter(name__iexact=value)
@@ -483,6 +483,11 @@ class ServiceSerializer(serializers.ModelSerializer):
             qs = qs.exclude(pk=self.instance.pk)
         if qs.exists():
             raise serializers.ValidationError('A service with this name already exists.')
+        return value
+
+    def validate_clinic_fees(self, value):
+        if value is not None and not (0 <= value <= 100):
+            raise serializers.ValidationError('clinic_fees must be a percentage between 0 and 100.')
         return value
 
 
