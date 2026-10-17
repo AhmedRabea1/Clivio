@@ -662,12 +662,15 @@ def api_configuration(request):
 def api_services(request):
     if request.method == "GET":
         qs = Service.objects.all()
-        name     = request.query_params.get('name', '').strip()
-        category = request.query_params.get('category', '').strip()
+        name       = request.query_params.get('name', '').strip()
+        category   = request.query_params.get('category', '').strip()
+        return_all = request.query_params.get('all', '').strip().lower() == 'true'
         if name:
             qs = qs.filter(name__icontains=name)
         if category:
             qs = qs.filter(category=category)
+        if return_all:
+            return Response(ServiceSerializer(qs, many=True).data)
         paginator = PageNumberPagination()
         paginator.page_size = 10
         page = paginator.paginate_queryset(qs, request)
