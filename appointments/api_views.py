@@ -574,16 +574,25 @@ def api_reservation_attachments(request, pk):
     if 'file' not in request.FILES:
         return Response({'error': 'No file provided.'}, status=status.HTTP_400_BAD_REQUEST)
 
-    if request.FILES['file'].size > 10 * 1024 * 1024:
-        return Response({'error': 'File size must not exceed 10 MB.'}, status=status.HTTP_400_BAD_REQUEST)
+    files = request.FILES.getlist('file')
 
-    attachment = ReservationAttachment.objects.create(
-        reservation=reservation,
-        file=request.FILES['file'],
-        uploaded_by=request.user,
-    )
+    oversized = [f.name for f in files if f.size > 10 * 1024 * 1024]
+    if oversized:
+        return Response(
+            {'error': f'File size must not exceed 10 MB: {", ".join(oversized)}'},
+            status=status.HTTP_400_BAD_REQUEST,
+        )
+
+    attachments = [
+        ReservationAttachment.objects.create(
+            reservation=reservation,
+            file=f,
+            uploaded_by=request.user,
+        )
+        for f in files
+    ]
     return Response(
-        ReservationAttachmentSerializer(attachment, context={'request': request}).data,
+        ReservationAttachmentSerializer(attachments, many=True, context={'request': request}).data,
         status=status.HTTP_201_CREATED,
     )
 
