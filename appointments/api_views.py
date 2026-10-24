@@ -123,7 +123,7 @@ def api_patients(request):
                 Q(reservations__body_mappings__zones__zone_services__service_id=service_id)
             ).distinct()
         paginator = PageNumberPagination()
-        paginator.page_size = 10
+        paginator.page_size = int(request.query_params.get('page_size', 10))
         page = paginator.paginate_queryset(qs, request)
         return paginator.get_paginated_response(PatientSerializer(page, many=True).data)
 
@@ -243,7 +243,7 @@ def api_reservations(request):
             qs = qs.exclude(status=Reservation.Status.CANCELED)
 
         paginator = PageNumberPagination()
-        paginator.page_size = int(request.query_params.get('page_size', 10))
+        paginator.page_size = 10
         page = paginator.paginate_queryset(qs, request)
 
         # Appointment number = position of this reservation among all of the doctor's
