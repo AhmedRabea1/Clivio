@@ -751,6 +751,52 @@ def api_product_detail(request, pk):
     return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
 
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def api_export_inventory(request):
+    """GET /api/products/export — exports current product stock as an Excel file."""
+    import openpyxl
+    from django.http import HttpResponse
+
+    service_id = request.query_params.get('service_id', '').strip()
+
+    qs = Product.objects.select_related('service').all()
+    if service_id:
+        qs = qs.filter(service_id=service_id)
+
+    wb = openpyxl.Workbook()
+    ws = wb.active
+    ws.title = 'Inventory'
+
+    headers = ['Name', 'Service', 'Type', 'Quantity', 'Volume (ml)', 'Remainder (ml)', 'Price']
+    ws.append(headers)
+
+    for product in qs:
+        ws.append([
+            product.name,
+            product.service.name if product.service_id else '',
+            product.get_type_display(),
+            product.quantity,
+            float(product.volume) if product.volume is not None else None,
+            float(product.remainder_ml),
+            float(product.price),
+        ])
+
+    from io import BytesIO
+    buffer = BytesIO()
+    wb.save(buffer)
+    buffer.seek(0)
+
+    response = HttpResponse(
+        buffer.getvalue(),
+        content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+    )
+    from datetime import datetime
+    timestamp = datetime.now().strftime('%Y-%m-%d_%H-%M-%S')
+    response['Content-Disposition'] = f'attachment; filename="inventory_{timestamp}.xlsx"'
+    return response
+
+
 # ─── Machine endpoints ────────────────────────────────────────────────────────
 
 @api_view(['GET', 'POST'])

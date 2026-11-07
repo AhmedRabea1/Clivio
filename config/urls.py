@@ -17,7 +17,7 @@ from accounts.api_views import (
     api_assistants, api_assistant_detail, api_assistant_status,
     api_assistant_roles,
     api_services, api_service_detail,
-    api_products, api_product_detail,
+    api_products, api_product_detail, api_export_inventory,
     api_machines, api_machine_detail,
     api_pulse_packages, api_pulse_package_detail,
     api_area_packages, api_area_package_detail,
@@ -83,8 +83,9 @@ api_urlpatterns = [
     path('services/<int:pk>',    api_service_detail,  name='api_service_detail'),
 
     # Products
-    path('products',             api_products,        name='api_products'),
-    path('products/<int:pk>',    api_product_detail,  name='api_product_detail'),
+    path('products',             api_products,         name='api_products'),
+    path('products/export',      api_export_inventory, name='api_export_inventory'),
+    path('products/<int:pk>',    api_product_detail,   name='api_product_detail'),
 
     # Machines
     path('machines',             api_machines,        name='api_machines'),
